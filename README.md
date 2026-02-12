@@ -17,6 +17,7 @@ npm run analyze:ui                      # ui-components wrapper layer
 npm run analyze:ui-sources              # Sanity UI vs internal import sources
 npm run analyze:html-tags               # Raw HTML tag usage per codebase
 npm run analyze:sanity-ui-customizations # Inline styles & styled() on Sanity UI
+npm run analyze:per-component            # Per-component import, instance & prop analysis
 ```
 
 ## Analyses
@@ -71,7 +72,18 @@ Counts every raw HTML element (`<div>`, `<span>`, `<button>`, …) in JSX across
 | CSV | `reports/html-tags/html-tags-report.csv` |
 | JSON | `reports/html-tags/html-tags-report.json` |
 
-### 6. Sanity UI Customizations
+### 6. Per-Component Sanity UI
+
+Individual report for every `@sanity/ui` component with total imports, total JSX instances, prop usage frequencies, and prop value distributions across all codebases.
+
+| Report | Path |
+|--------|------|
+| Summary text | `reports/per-component/per-component-summary.txt` |
+| Summary CSV | `reports/per-component/per-component-summary.csv` |
+| Summary JSON | `reports/per-component/per-component-summary.json` |
+| Individual JSONs | `reports/per-component/components/<Component>.json` |
+
+### 7. Sanity UI Customizations
 
 Measures how often Sanity UI primitives receive an inline `style` prop or are wrapped with `styled()`. Captures which CSS properties are applied in each case.
 
@@ -119,11 +131,14 @@ studio-analysis/
 │   │   └── analyze-html-tags.js
 │   ├── customizations/                 # Inline style & styled() analysis
 │   │   └── analyze-sanity-ui-customizations.js
-│   └── __tests__/                      # Unit tests (402 tests)
+│   ├── per-component/                  # Per-component Sanity UI analysis
+│   │   └── analyze-per-component.js
+│   └── __tests__/                      # Unit tests (536 tests)
 │       ├── lib.test.js
 │       ├── html-tags.test.js
 │       ├── customizations.test.js
-│       └── sources.test.js
+│       ├── sources.test.js
+│       └── per-component.test.js
 ├── reports/                            # Generated output (gitignored csvs/txts)
 ├── package.json
 ├── jest.config.js
@@ -133,12 +148,12 @@ studio-analysis/
 ## Testing
 
 ```bash
-npm test                # Run all 402 tests
+npm test                # Run all 536 tests
 npm run test:watch      # Watch mode
 npm run test:coverage   # Coverage report
 ```
 
-Four test suites cover the shared library and custom analysis scripts:
+Five test suites cover the shared library and custom analysis scripts:
 
 | Suite | Tests | Covers |
 |-------|-------|--------|
@@ -146,6 +161,7 @@ Four test suites cover the shared library and custom analysis scripts:
 | `html-tags.test.js` | 78 | HTML tag extraction, allowlist filtering, aggregation, report generation |
 | `customizations.test.js` | 105 | Inline style & styled() extraction, property parsing, report generation |
 | `sources.test.js` | 133 | Import mapping, JSX instance counting, aggregation, HTML tag integration |
+| `per-component.test.js` | 134 | Import/instance extraction, prop parsing, value classification, aggregation, report generation |
 
 ## Adding a New Codebase
 
