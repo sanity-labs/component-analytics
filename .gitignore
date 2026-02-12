@@ -1,0 +1,8 @@
+.DS_Store
+
+node_modules
+
+codebases
+
+# Only ignore the root-level reports directory
+/reports

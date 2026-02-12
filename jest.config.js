@@ -1,0 +1,58 @@
+module.exports = {
+  testEnvironment: "node",
+  testMatch: ["**/__tests__/**/*.test.js"],
+  collectCoverageFrom: [
+    "scripts/sources/analyze-ui-component-sources.js",
+    "scripts/html-tags/analyze-html-tags.js",
+    "scripts/customizations/analyze-sanity-ui-customizations.js",
+    "scripts/lib/constants.js",
+    "scripts/lib/utils.js",
+    "scripts/lib/files.js",
+    "!scripts/**/__tests__/**",
+  ],
+  coverageDirectory: "coverage",
+  coverageReporters: ["text", "lcov", "html"],
+  coverageThreshold: {
+    "scripts/sources/analyze-ui-component-sources.js": {
+      branches: 40,
+      functions: 30,
+      lines: 20,
+      statements: 20,
+    },
+    "scripts/html-tags/analyze-html-tags.js": {
+      branches: 40,
+      functions: 80,
+      lines: 60,
+      statements: 60,
+    },
+    "scripts/customizations/analyze-sanity-ui-customizations.js": {
+      branches: 40,
+      functions: 80,
+      lines: 60,
+      statements: 60,
+    },
+    "scripts/lib/constants.js": {
+      branches: 100,
+      functions: 100,
+      lines: 100,
+      statements: 100,
+    },
+    "scripts/lib/utils.js": {
+      branches: 80,
+      functions: 90,
+      lines: 90,
+      statements: 90,
+    },
+    "scripts/lib/files.js": {
+      branches: 35,
+      functions: 50,
+      lines: 35,
+      statements: 35,
+    },
+  },
+  verbose: true,
+  testTimeout: 10000,
+  modulePathIgnorePatterns: ["<rootDir>/codebases/", "<rootDir>/node_modules/"],
+  testPathIgnorePatterns: ["<rootDir>/codebases/", "<rootDir>/node_modules/"],
+  watchPathIgnorePatterns: ["<rootDir>/codebases/", "<rootDir>/node_modules/"],
+};
