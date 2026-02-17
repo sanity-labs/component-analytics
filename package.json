@@ -3,7 +3,7 @@
   "version": "2.1.0",
   "description": "React component usage analysis for multiple Sanity Studio codebases",
   "scripts": {
-    "analyze": "npm run analyze:components && npm run analyze:icons && npm run analyze:ui && npm run analyze:ui-sources && npm run analyze:html-tags && npm run analyze:sanity-ui-customizations && npm run analyze:per-component",
+    "analyze": "npm run analyze:components && npm run analyze:icons && npm run analyze:ui && npm run analyze:ui-sources && npm run analyze:html-tags && npm run analyze:sanity-ui-customizations && npm run analyze:per-component && npm run analyze:prop-surface && npm run analyze:line-ownership",
     "analyze:components": "CODEBASE=sanity react-scanner -c config/react-scanner.config.js && CODEBASE=canvas react-scanner -c config/react-scanner.config.js && CODEBASE=huey react-scanner -c config/react-scanner.config.js && node scripts/components/convert-to-csv.js && node scripts/components/create-summary-csv.js && node scripts/components/generate-stats.js",
     "analyze:icons": "node scripts/icons/analyze-icons-comprehensive.js && node scripts/icons/aggregate-icon-reports.js",
     "analyze:ui": "CODEBASE=sanity react-scanner -c config/react-scanner-ui-components.config.js && CODEBASE=canvas react-scanner -c config/react-scanner-ui-components.config.js && CODEBASE=huey react-scanner -c config/react-scanner-ui-components.config.js && node scripts/ui-components/convert-ui-components-to-csv.js && node scripts/ui-components/create-ui-components-summary.js",
@@ -11,6 +11,8 @@
     "analyze:html-tags": "node scripts/html-tags/analyze-html-tags.js",
     "analyze:sanity-ui-customizations": "node scripts/customizations/analyze-sanity-ui-customizations.js",
     "analyze:per-component": "node scripts/per-component/analyze-per-component.js",
+    "analyze:prop-surface": "node scripts/prop-surface/analyze-prop-surface.js",
+    "analyze:line-ownership": "node scripts/line-ownership/analyze-line-ownership.js",
     "analyze:sanity-ui": "CODEBASE=sanity react-scanner -c config/react-scanner-sanity-ui.config.js && CODEBASE=canvas react-scanner -c config/react-scanner-sanity-ui.config.js && CODEBASE=huey react-scanner -c config/react-scanner-sanity-ui.config.js",
     "analyze:all-components": "CODEBASE=sanity react-scanner -c config/react-scanner-all-components.config.js && CODEBASE=canvas react-scanner -c config/react-scanner-all-components.config.js && CODEBASE=huey react-scanner -c config/react-scanner-all-components.config.js",
     "dashboard:dev": "npm --prefix dashboard run dev",

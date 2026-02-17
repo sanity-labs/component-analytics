@@ -265,6 +265,151 @@ const HTML_TAG_CATEGORIES = {
 const KNOWN_TAGS = new Set(Object.values(HTML_TAG_CATEGORIES).flat());
 
 /**
+ * Known default prop values for Sanity UI components.
+ *
+ * When a developer explicitly sets a prop to its default value (e.g.
+ * `<Button mode="default">`), the usage is redundant — the same result
+ * would occur without the prop.  This map lets the per-component
+ * analyser detect and count those redundant usages.
+ *
+ * Values are in the **normalised** form produced by `normalizeValue()`:
+ *   - String literals are wrapped in double quotes: `"default"`
+ *   - Numbers are bare strings: `"2"`
+ *   - Booleans are bare strings: `"true"`, `"false"`
+ *
+ * Only props with well-known, documented defaults are listed.  Props
+ * whose default is `undefined` (i.e. the prop is simply absent) are
+ * omitted because there's no meaningful "redundant" usage to detect.
+ *
+ * @type {Object<string, Object<string, string>>}
+ */
+const PROP_DEFAULTS = {
+  // ── Layout ──────────────────────────────────────────────
+  Box: {
+    as: '"div"',
+  },
+  Flex: {
+    align: '"stretch"',
+    as: '"div"',
+    direction: '"row"',
+    justify: '"flex-start"',
+    wrap: '"nowrap"',
+  },
+  Grid: {
+    as: '"div"',
+  },
+  Stack: {
+    as: '"div"',
+  },
+  Inline: {
+    as: '"div"',
+  },
+  Container: {
+    as: '"div"',
+  },
+
+  // ── Interactive ─────────────────────────────────────────
+  Button: {
+    as: '"button"',
+    mode: '"default"',
+    type: '"button"',
+  },
+  Card: {
+    as: '"div"',
+    tone: '"default"',
+  },
+  Dialog: {
+    position: '"fixed"',
+  },
+  Menu: {},
+  MenuButton: {},
+  MenuItem: {
+    as: '"button"',
+    tone: '"default"',
+  },
+  MenuDivider: {},
+  MenuGroup: {},
+  Popover: {
+    placement: '"bottom"',
+    tone: '"default"',
+  },
+  Tooltip: {
+    placement: '"top"',
+  },
+  Tab: {
+    as: '"button"',
+  },
+  TabList: {},
+  TabPanel: {},
+
+  // ── Form ────────────────────────────────────────────────
+  TextInput: {
+    type: '"text"',
+  },
+  TextArea: {},
+  Checkbox: {},
+  Radio: {},
+  Select: {},
+  Switch: {},
+  Autocomplete: {},
+  Label: {
+    as: '"label"',
+  },
+
+  // ── Typography ──────────────────────────────────────────
+  Text: {
+    as: '"span"',
+    size: '"2"',
+    weight: '"regular"',
+  },
+  Heading: {
+    as: '"h2"',
+    size: '"2"',
+  },
+  Code: {
+    as: '"code"',
+    size: '"2"',
+  },
+  Badge: {
+    as: '"span"',
+    mode: '"default"',
+    size: '"2"',
+    tone: '"default"',
+  },
+  KBD: {},
+
+  // ── Feedback ────────────────────────────────────────────
+  Spinner: {},
+  Toast: {},
+
+  // ── Data Display ────────────────────────────────────────
+  Avatar: {
+    size: '"0"',
+  },
+  AvatarCounter: {},
+  AvatarStack: {},
+  Skeleton: {
+    animated: "true",
+  },
+  TextSkeleton: {
+    animated: "true",
+  },
+  Tree: {},
+  TreeItem: {},
+
+  // ── Utility / Providers ─────────────────────────────────
+  BoundaryElementProvider: {},
+  ErrorBoundary: {},
+  Layer: {},
+  LayerProvider: {},
+  Portal: {},
+  PortalProvider: {},
+  ThemeColorProvider: {},
+  ThemeProvider: {},
+  TooltipDelayGroupProvider: {},
+};
+
+/**
  * Glob ignore patterns shared by every analyser when scanning codebases.
  *
  * @type {string[]}
@@ -284,5 +429,6 @@ module.exports = {
   SANITY_UI_COMPONENTS,
   HTML_TAG_CATEGORIES,
   KNOWN_TAGS,
+  PROP_DEFAULTS,
   DEFAULT_GLOB_IGNORE,
 };
