@@ -864,6 +864,7 @@ describe("createEmptyReport", () => {
       codebaseImports: {},
       codebaseInstances: {},
       references: [],
+      totalDefaultUsages: 0,
     });
   });
 
@@ -963,6 +964,194 @@ describe("recordProp", () => {
 
     expect(report.props.border.values["true"]).toBe(1);
     expect(report.props.disabled.values["false"]).toBe(1);
+  });
+
+  // ── Default value detection ─────────────────────────────────────────────
+
+  test("detects when Button mode is set to its default value", () => {
+    const report = createEmptyReport("Button");
+    // mode="default" → parseProps gives "'default'" → classifyValue → "default" → normalizeValue → '"default"'
+    recordProp(report, "mode", "'default'");
+    recordProp(report, "mode", "'ghost'");
+    recordProp(report, "mode", "'bleed'");
+
+    expect(report.props.mode.totalUsages).toBe(3);
+    expect(report.props.mode.defaultUsages).toBe(1);
+    expect(report.props.mode.defaultValue).toBe('"default"');
+    expect(report.totalDefaultUsages).toBe(1);
+  });
+
+  test("detects when Flex direction is set to its default 'row'", () => {
+    const report = createEmptyReport("Flex");
+    recordProp(report, "direction", "'row'");
+    recordProp(report, "direction", "'row'");
+    recordProp(report, "direction", "'column'");
+
+    expect(report.props.direction.totalUsages).toBe(3);
+    expect(report.props.direction.defaultUsages).toBe(2);
+    expect(report.props.direction.defaultValue).toBe('"row"');
+    expect(report.totalDefaultUsages).toBe(2);
+  });
+
+  test("detects when Flex wrap is set to its default 'nowrap'", () => {
+    const report = createEmptyReport("Flex");
+    recordProp(report, "wrap", "'nowrap'");
+
+    expect(report.props.wrap.defaultUsages).toBe(1);
+    expect(report.props.wrap.defaultValue).toBe('"nowrap"');
+  });
+
+  test("detects when Flex justify is set to its default 'flex-start'", () => {
+    const report = createEmptyReport("Flex");
+    recordProp(report, "justify", "'flex-start'");
+    recordProp(report, "justify", "'center'");
+
+    expect(report.props.justify.defaultUsages).toBe(1);
+    expect(report.props.justify.defaultValue).toBe('"flex-start"');
+  });
+
+  test("detects when Flex align is set to its default 'stretch'", () => {
+    const report = createEmptyReport("Flex");
+    recordProp(report, "align", "'stretch'");
+    recordProp(report, "align", "'center'");
+
+    expect(report.props.align.defaultUsages).toBe(1);
+    expect(report.props.align.defaultValue).toBe('"stretch"');
+  });
+
+  test("detects when Text weight is set to its default 'regular'", () => {
+    const report = createEmptyReport("Text");
+    recordProp(report, "weight", "'regular'");
+    recordProp(report, "weight", "'bold'");
+
+    expect(report.props.weight.defaultUsages).toBe(1);
+    expect(report.props.weight.defaultValue).toBe('"regular"');
+  });
+
+  test("detects when Card tone is set to its default 'default'", () => {
+    const report = createEmptyReport("Card");
+    recordProp(report, "tone", "'default'");
+    recordProp(report, "tone", "'primary'");
+    recordProp(report, "tone", "'critical'");
+
+    expect(report.props.tone.totalUsages).toBe(3);
+    expect(report.props.tone.defaultUsages).toBe(1);
+    expect(report.props.tone.defaultValue).toBe('"default"');
+    expect(report.totalDefaultUsages).toBe(1);
+  });
+
+  test("detects when Skeleton animated is set to its default true", () => {
+    const report = createEmptyReport("Skeleton");
+    recordProp(report, "animated", "true");
+    recordProp(report, "animated", "false");
+
+    expect(report.props.animated.defaultUsages).toBe(1);
+    expect(report.props.animated.defaultValue).toBe("true");
+    expect(report.totalDefaultUsages).toBe(1);
+  });
+
+  test("detects when Button type is set to its default 'button'", () => {
+    const report = createEmptyReport("Button");
+    recordProp(report, "type", "'button'");
+    recordProp(report, "type", "'submit'");
+
+    expect(report.props.type.defaultUsages).toBe(1);
+    expect(report.props.type.defaultValue).toBe('"button"');
+  });
+
+  test("does not flag non-default values as defaults", () => {
+    const report = createEmptyReport("Button");
+    recordProp(report, "mode", "'ghost'");
+    recordProp(report, "mode", "'bleed'");
+
+    expect(report.props.mode.defaultUsages).toBe(0);
+    expect(report.totalDefaultUsages).toBe(0);
+  });
+
+  test("does not flag props with no known default", () => {
+    const report = createEmptyReport("Card");
+    recordProp(report, "padding", "4");
+    recordProp(report, "radius", "2");
+
+    // padding and radius have no known default in PROP_DEFAULTS
+    expect(report.props.padding.defaultValue).toBeNull();
+    expect(report.props.padding.defaultUsages).toBe(0);
+    expect(report.props.radius.defaultValue).toBeNull();
+    expect(report.props.radius.defaultUsages).toBe(0);
+    expect(report.totalDefaultUsages).toBe(0);
+  });
+
+  test("does not flag dynamic values even if they might resolve to the default", () => {
+    const report = createEmptyReport("Button");
+    // A ternary that might evaluate to "default" at runtime — but we can't know
+    recordProp(report, "mode", "isActive ? 'default' : 'ghost'");
+
+    expect(report.props.mode.defaultUsages).toBe(0);
+    expect(report.props.mode.values["<ternary>"]).toBe(1);
+  });
+
+  test("does not flag variable references even if named 'default'", () => {
+    const report = createEmptyReport("Button");
+    recordProp(report, "mode", "defaultMode");
+
+    expect(report.props.mode.defaultUsages).toBe(0);
+    expect(report.props.mode.values["<variable>"]).toBe(1);
+  });
+
+  test("accumulates totalDefaultUsages across multiple props", () => {
+    const report = createEmptyReport("Button");
+    // mode="default" (1 default)
+    recordProp(report, "mode", "'default'");
+    // type="button" (1 default)
+    recordProp(report, "type", "'button'");
+    // as="button" (1 default)
+    recordProp(report, "as", "'button'");
+    // mode="ghost" (not default)
+    recordProp(report, "mode", "'ghost'");
+
+    expect(report.props.mode.defaultUsages).toBe(1);
+    expect(report.props.type.defaultUsages).toBe(1);
+    expect(report.props.as.defaultUsages).toBe(1);
+    expect(report.totalDefaultUsages).toBe(3);
+  });
+
+  test("components with no PROP_DEFAULTS entry never flag defaults", () => {
+    const report = createEmptyReport("TabList");
+    recordProp(report, "space", "2");
+    recordProp(report, "foo", "'bar'");
+
+    expect(report.props.space.defaultValue).toBeNull();
+    expect(report.props.foo.defaultValue).toBeNull();
+    expect(report.totalDefaultUsages).toBe(0);
+  });
+
+  test("Tooltip placement default detection", () => {
+    const report = createEmptyReport("Tooltip");
+    recordProp(report, "placement", "'top'");
+    recordProp(report, "placement", "'bottom'");
+
+    expect(report.props.placement.defaultUsages).toBe(1);
+    expect(report.props.placement.defaultValue).toBe('"top"');
+  });
+
+  test("Popover placement default detection", () => {
+    const report = createEmptyReport("Popover");
+    recordProp(report, "placement", "'bottom'");
+    recordProp(report, "placement", "'top'");
+
+    expect(report.props.placement.defaultUsages).toBe(1);
+    expect(report.props.placement.defaultValue).toBe('"bottom"');
+  });
+
+  test("TextInput type default detection", () => {
+    const report = createEmptyReport("TextInput");
+    recordProp(report, "type", "'text'");
+    recordProp(report, "type", "'password'");
+    recordProp(report, "type", "'text'");
+
+    expect(report.props.type.defaultUsages).toBe(2);
+    expect(report.props.type.defaultValue).toBe('"text"');
+    expect(report.totalDefaultUsages).toBe(2);
   });
 });
 

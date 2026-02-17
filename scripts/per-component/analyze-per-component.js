@@ -29,7 +29,11 @@
 const fs = require("fs");
 const path = require("path");
 
-const { CODEBASES, SANITY_UI_COMPONENTS } = require("../lib/constants");
+const {
+  CODEBASES,
+  SANITY_UI_COMPONENTS,
+  PROP_DEFAULTS,
+} = require("../lib/constants");
 const { sortByCount, incr, pct } = require("../lib/utils");
 const {
   codebaseExists,
@@ -430,8 +434,10 @@ function escapeRegex(s) {
 
 /**
  * @typedef {object} PropValueBucket
- * @property {Object<string, number>} values     - normalized value → count.
- * @property {number}                 totalUsages - total times this prop was used.
+ * @property {Object<string, number>} values         - normalized value → count.
+ * @property {number}                 totalUsages     - total times this prop was used.
+ * @property {number}                 defaultUsages   - times the prop was set to its known default value.
+ * @property {string|null}            defaultValue    - the known default value (null if unknown).
  */
 
 /**
@@ -450,6 +456,7 @@ function escapeRegex(s) {
  * @property {Object<string, number>}          codebaseImports - Imports per codebase.
  * @property {Object<string, number>}          codebaseInstances - Instances per codebase.
  * @property {InstanceReference[]}             references      - File + line for every instance.
+ * @property {number}                          totalDefaultUsages - Total times any prop was set to its default.
  */
 
 /**
@@ -467,11 +474,17 @@ function createEmptyReport(component) {
     codebaseImports: {},
     codebaseInstances: {},
     references: [],
+    totalDefaultUsages: 0,
   };
 }
 
 /**
  * Record a single prop occurrence into a component report.
+ *
+ * Also checks whether the value matches the known default for this
+ * component + prop combination (from {@link PROP_DEFAULTS}).  If so,
+ * the `defaultUsages` counter on the prop bucket and the report-level
+ * `totalDefaultUsages` counter are both incremented.
  *
  * @param {ComponentReport} report
  * @param {string}          propName
@@ -479,13 +492,29 @@ function createEmptyReport(component) {
  */
 function recordProp(report, propName, rawValue) {
   if (!report.props[propName]) {
-    report.props[propName] = { values: {}, totalUsages: 0 };
+    const knownDefault =
+      (PROP_DEFAULTS[report.component] &&
+        PROP_DEFAULTS[report.component][propName]) ||
+      null;
+    report.props[propName] = {
+      values: {},
+      totalUsages: 0,
+      defaultUsages: 0,
+      defaultValue: knownDefault,
+    };
   }
   report.props[propName].totalUsages++;
 
   const classified = classifyValue(rawValue);
   const normalized = normalizeValue(classified);
   incr(report.props[propName].values, normalized);
+
+  // Check if this value matches the known default
+  const bucket = report.props[propName];
+  if (bucket.defaultValue !== null && normalized === bucket.defaultValue) {
+    bucket.defaultUsages++;
+    report.totalDefaultUsages++;
+  }
 }
 
 /**
@@ -552,10 +581,15 @@ function buildComponentJson(report) {
   const propsDetail = {};
   for (const [propName] of propEntries) {
     const bucket = report.props[propName];
-    propsDetail[propName] = {
+    const detail = {
       totalUsages: bucket.totalUsages,
       values: Object.fromEntries(sortByCount(bucket.values)),
     };
+    if (bucket.defaultValue !== null) {
+      detail.defaultValue = bucket.defaultValue;
+      detail.defaultUsages = bucket.defaultUsages;
+    }
+    propsDetail[propName] = detail;
   }
 
   return {
@@ -576,6 +610,7 @@ function buildComponentJson(report) {
             ).toFixed(2),
           )
         : 0,
+    totalDefaultUsages: report.totalDefaultUsages,
     props: propsDetail,
     references: report.references,
   };
@@ -597,6 +632,7 @@ function generateSummaryCSV(reports) {
     "Component",
     "Total Imports",
     "Total Instances",
+    "Default Value Usages",
     ...codebaseNames.map((c) => `${c} Imports`),
     ...codebaseNames.map((c) => `${c} Instances`),
     "Unique Props",
@@ -635,6 +671,7 @@ function generateSummaryCSV(reports) {
         `"${r.component}"`,
         r.totalImports,
         r.totalInstances,
+        r.totalDefaultUsages,
         ...codebaseNames.map((c) => r.codebaseImports[c] || 0),
         ...codebaseNames.map((c) => r.codebaseInstances[c] || 0),
         uniqueProps,
@@ -676,18 +713,23 @@ function generateSummaryJSON(reports) {
       codebaseImports: r.codebaseImports,
       codebaseInstances: r.codebaseInstances,
       uniqueProps: Object.keys(r.props).length,
+      totalDefaultUsages: r.totalDefaultUsages,
       topProps: propsSorted.slice(0, 10).map(([name, count]) => ({
         name,
         usages: count,
+        defaultUsages: r.props[name].defaultUsages,
+        defaultValue: r.props[name].defaultValue,
       })),
     };
   });
 
   let totalImports = 0;
   let totalInstances = 0;
+  let totalDefaultUsages = 0;
   for (const r of sorted) {
     totalImports += r.totalImports;
     totalInstances += r.totalInstances;
+    totalDefaultUsages += r.totalDefaultUsages;
   }
 
   return JSON.stringify(
@@ -696,6 +738,7 @@ function generateSummaryJSON(reports) {
       totalComponents: sorted.length,
       totalImports,
       totalInstances,
+      totalDefaultUsages,
       components,
     },
     null,
@@ -727,14 +770,19 @@ function generateSummaryText(reports) {
 
   let totalImports = 0;
   let totalInstances = 0;
+  let totalDefaultUsages = 0;
   for (const r of sorted) {
     totalImports += r.totalImports;
     totalInstances += r.totalInstances;
+    totalDefaultUsages += r.totalDefaultUsages;
   }
 
   lines.push(`  Components analysed:   ${sorted.length}`);
   lines.push(`  Total imports:         ${totalImports}`);
   lines.push(`  Total JSX instances:   ${totalInstances}`);
+  lines.push(
+    `  Default value usages:  ${totalDefaultUsages}  (props explicitly set to their default)`,
+  );
   lines.push("");
 
   // Ranked table
@@ -747,9 +795,11 @@ function generateSummaryText(reports) {
       "  " +
       "Props".padStart(7) +
       "  " +
-      "Avg Props/Use".padStart(14),
+      "Avg P/Use".padStart(10) +
+      "  " +
+      "Defaults".padStart(9),
   );
-  lines.push("  " + "-".repeat(82));
+  lines.push("  " + "-".repeat(87));
 
   for (let i = 0; i < sorted.length; i++) {
     const r = sorted[i];
@@ -772,7 +822,9 @@ function generateSummaryText(reports) {
         "  " +
         String(uniqueProps).padStart(7) +
         "  " +
-        avgProps.padStart(14),
+        avgProps.padStart(10) +
+        "  " +
+        String(r.totalDefaultUsages).padStart(9),
     );
   }
 
@@ -806,15 +858,19 @@ function generateSummaryText(reports) {
         "Prop".padEnd(28) +
         "Usages".padStart(8) +
         "  " +
+        "Defaults".padStart(9) +
+        "  " +
         "% of instances".padStart(15) +
         "  " +
         "Top values",
     );
-    lines.push("  " + "-".repeat(85));
+    lines.push("  " + "-".repeat(95));
 
     for (const [propName, usages] of propsSorted.slice(0, 20)) {
       const bucket = r.props[propName];
       const percentage = pct(usages, r.totalInstances);
+      const defaultStr =
+        bucket.defaultValue !== null ? String(bucket.defaultUsages) : "—";
       const topVals = sortByCount(bucket.values)
         .slice(0, 5)
         .map(([v, c]) => `${v}(${c})`)
@@ -825,9 +881,19 @@ function generateSummaryText(reports) {
           propName.padEnd(28) +
           String(usages).padStart(8) +
           "  " +
+          defaultStr.padStart(9) +
+          "  " +
           (percentage + "%").padStart(15) +
           "  " +
           topVals,
+      );
+    }
+
+    // Show total default usages for this component
+    if (r.totalDefaultUsages > 0) {
+      lines.push("");
+      lines.push(
+        `  ⚠ ${r.totalDefaultUsages} prop usages explicitly set to their default value`,
       );
     }
     lines.push("");
