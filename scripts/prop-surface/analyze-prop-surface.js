@@ -27,7 +27,12 @@
  *   npm run analyze:prop-surface
  */
 
-const { CODEBASES, SANITY_UI_COMPONENTS } = require("../lib/constants");
+const {
+  CODEBASES,
+  SANITY_UI_COMPONENTS,
+  UI_LIBRARY_NAME,
+  isTrackedUISource,
+} = require("../lib/constants");
 const { sortByCount, pct, incr } = require("../lib/utils");
 const {
   codebaseExists,
@@ -105,13 +110,16 @@ function parseNamedImports(namedImportsStr) {
 }
 
 /**
- * Check whether an import source is `@sanity/ui` (not `/theme`).
+ * Check whether an import source belongs to the tracked UI library.
+ *
+ * Delegates to {@link isTrackedUISource} from `lib/constants`, which
+ * derives the matching rules from `studio-analysis.config.js`.
  *
  * @param {string} source
  * @returns {boolean}
  */
 function isSanityUISource(source) {
-  return /@sanity\/ui(?!\/theme)/.test(source);
+  return isTrackedUISource(source);
 }
 
 /**
@@ -353,11 +361,11 @@ function generateTextReport(results) {
   const lines = [];
 
   lines.push("═".repeat(90));
-  lines.push("  SANITY UI PROP SURFACE AREA ANALYSIS");
+  lines.push(`  ${UI_LIBRARY_NAME.toUpperCase()} PROP SURFACE AREA ANALYSIS`);
   lines.push("═".repeat(90));
   lines.push("");
   lines.push(
-    "  Measures the character footprint of Sanity UI component props/attributes",
+    `  Measures the character footprint of ${UI_LIBRARY_NAME} component props/attributes`,
   );
   lines.push(
     "  relative to files that render UI (contain JSX).  Pure logic files",
@@ -406,10 +414,10 @@ function generateTextReport(results) {
       `  UI files (with JSX):         ${data.uiFileCount.toLocaleString()}`,
     );
     lines.push(
-      `  Files with Sanity UI:        ${data.filesWithSanityUI.toLocaleString()}`,
+      `  Files with ${UI_LIBRARY_NAME}:${" ".repeat(Math.max(1, 23 - UI_LIBRARY_NAME.length))}${data.filesWithSanityUI.toLocaleString()}`,
     );
     lines.push(
-      `  Sanity UI tags found:        ${data.sanityUITagCount.toLocaleString()}`,
+      `  ${UI_LIBRARY_NAME} tags found:${" ".repeat(Math.max(1, 23 - UI_LIBRARY_NAME.length))}${data.sanityUITagCount.toLocaleString()}`,
     );
     lines.push("");
     lines.push(
@@ -419,7 +427,7 @@ function generateTextReport(results) {
       `  UI file chars:               ${data.uiFileChars.toLocaleString()}  (${formatSize(data.uiFileChars)})`,
     );
     lines.push(
-      `  Sanity UI prop chars:        ${data.sanityUIPropChars.toLocaleString()}  (${formatSize(data.sanityUIPropChars)})`,
+      `  ${UI_LIBRARY_NAME} prop chars:${" ".repeat(Math.max(1, 23 - UI_LIBRARY_NAME.length))}${data.sanityUIPropChars.toLocaleString()}  (${formatSize(data.sanityUIPropChars)})`,
     );
     lines.push(`  Prop surface area (UI):      ${p}%`);
     lines.push("");
@@ -478,10 +486,10 @@ function generateTextReport(results) {
     `  UI files (with JSX):         ${grand.uiFileCount.toLocaleString()}`,
   );
   lines.push(
-    `  Files with Sanity UI:        ${grand.filesWithSanityUI.toLocaleString()}`,
+    `  Files with ${UI_LIBRARY_NAME}:${" ".repeat(Math.max(1, 23 - UI_LIBRARY_NAME.length))}${grand.filesWithSanityUI.toLocaleString()}`,
   );
   lines.push(
-    `  Sanity UI tags:              ${grand.sanityUITagCount.toLocaleString()}`,
+    `  ${UI_LIBRARY_NAME} tags:${" ".repeat(Math.max(1, 30 - UI_LIBRARY_NAME.length))}${grand.sanityUITagCount.toLocaleString()}`,
   );
   lines.push("");
   lines.push(
@@ -491,7 +499,7 @@ function generateTextReport(results) {
     `  UI file chars:               ${grand.uiFileChars.toLocaleString()}  (${formatSize(grand.uiFileChars)})`,
   );
   lines.push(
-    `  Sanity UI prop chars:        ${grand.sanityUIPropChars.toLocaleString()}  (${formatSize(grand.sanityUIPropChars)})`,
+    `  ${UI_LIBRARY_NAME} prop chars:${" ".repeat(Math.max(1, 23 - UI_LIBRARY_NAME.length))}${grand.sanityUIPropChars.toLocaleString()}  (${formatSize(grand.sanityUIPropChars)})`,
   );
   lines.push(
     `  Prop surface area (UI):      ${pct(grand.sanityUIPropChars, grand.uiFileChars)}%`,
@@ -630,7 +638,7 @@ function generateCSV(results) {
 
   // Section 1: Codebase summary
   rows.push(
-    "Codebase,Total Files,UI Files,Files with Sanity UI,Total Characters,UI File Characters,Sanity UI Prop Characters,Prop Surface % (UI),Sanity UI Tags,Avg Chars per Tag",
+    `Codebase,Total Files,UI Files,Files with ${UI_LIBRARY_NAME},Total Characters,UI File Characters,${UI_LIBRARY_NAME} Prop Characters,Prop Surface % (UI),${UI_LIBRARY_NAME} Tags,Avg Chars per Tag`,
   );
 
   let grandTotalChars = 0;
@@ -842,7 +850,7 @@ async function analyzeCodebase(codebase) {
 
   const p = pct(agg.sanityUIPropChars, agg.uiFileChars);
   console.log(
-    `   ${agg.uiFileCount} UI files (${formatSize(agg.uiFileChars)}), ${formatSize(agg.sanityUIPropChars)} Sanity UI props (${p}%)`,
+    `   ${agg.uiFileCount} UI files (${formatSize(agg.uiFileChars)}), ${formatSize(agg.sanityUIPropChars)} ${UI_LIBRARY_NAME} props (${p}%)`,
   );
 
   return agg;
@@ -859,7 +867,7 @@ async function analyzeCodebase(codebase) {
  */
 async function main() {
   console.log("═".repeat(60));
-  console.log("  SANITY UI PROP SURFACE AREA ANALYSIS");
+  console.log(`  ${UI_LIBRARY_NAME.toUpperCase()} PROP SURFACE AREA ANALYSIS`);
   console.log("═".repeat(60));
 
   /** @type {Object<string, CodebaseMetrics | null>} */

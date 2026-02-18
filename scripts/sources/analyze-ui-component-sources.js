@@ -4,105 +4,22 @@ const { glob } = require("glob");
 
 const { extractHTMLTags } = require("../html-tags/analyze-html-tags");
 const { sumValues } = require("../lib/utils");
-
-// List of codebases to analyze
-const CODEBASES = ["sanity", "canvas", "huey"];
-
-// Known UI component libraries and their import patterns
-const UI_LIBRARIES = {
-  "@sanity/ui": {
-    pattern: /@sanity\/ui/,
-    description: "Sanity UI - Core design system",
-  },
-  "@sanity/ui/theme": {
-    pattern: /@sanity\/ui\/theme/,
-    description: "Sanity UI Theme utilities",
-  },
-  "@sanity/icons": {
-    pattern: /@sanity\/icons/,
-    description: "Sanity Icons library (part of Sanity UI ecosystem)",
-  },
-  "ui-components": {
-    pattern: /ui-components/,
-    description: "Internal UI components wrapper",
-  },
-  "@radix-ui": {
-    pattern: /@radix-ui/,
-    description: "Radix UI - Headless components",
-  },
-  "styled-components": {
-    pattern: /styled-components/,
-    description: "Styled Components CSS-in-JS",
-  },
-  "motion/react": {
-    pattern: /motion\/react|framer-motion/,
-    description: "Motion/Framer Motion animations",
-  },
-  react: {
-    pattern: /^['"]react['"]$/,
-    description: "React core (fragments, etc.)",
-  },
-};
-
-// Sanity UI components list (commonly used)
-const SANITY_UI_COMPONENTS = [
-  // Layout
-  "Box",
-  "Flex",
-  "Grid",
-  "Stack",
-  "Inline",
-  "Container",
-  // Interactive
-  "Button",
-  "Card",
-  "Dialog",
-  "Menu",
-  "MenuButton",
-  "MenuItem",
-  "MenuDivider",
-  "MenuGroup",
-  "Popover",
-  "Tooltip",
-  "Tab",
-  "TabList",
-  "TabPanel",
-  // Form
-  "TextInput",
-  "TextArea",
-  "Checkbox",
-  "Radio",
-  "Select",
-  "Switch",
-  "Autocomplete",
-  "Label",
-  // Typography
-  "Text",
-  "Heading",
-  "Code",
-  "Badge",
-  "KBD",
-  // Feedback
-  "Spinner",
-  "Toast",
-  "useToast",
-  // Data Display
-  "Avatar",
-  "Tree",
-  "TreeItem",
-  // Utility
-  "Portal",
-  "Layer",
-  "ThemeProvider",
-  "useTheme",
-];
+const {
+  CODEBASES,
+  CODEBASE_PATHS,
+  TRACKED_COMPONENTS,
+  UI_LIBRARY_NAME,
+  isTrackedUISource,
+  isOtherUISource,
+  DEFAULT_GLOB_IGNORE,
+} = require("../lib/constants");
 
 /**
  * Parse named imports from an import statement, returning the LOCAL
  * names that will appear in JSX (i.e. the alias when present).
  *
- * Only PascalCase names are returned — hooks like `useToast` and
- * utilities like `rem` are excluded because they aren't JSX elements.
+ * Only PascalCase names are returned — hooks and utilities are excluded
+ * because they aren't JSX elements.
  *
  * @param {string} namedImportsStr - The string inside { } in an import statement
  * @returns {string[]} - Array of local component names (PascalCase only)
@@ -128,23 +45,23 @@ function parseNamedImports(namedImportsStr) {
 }
 
 /**
- * Categorize an import source
+ * Categorize an import source into one of: tracked UI library,
+ * other UI library, internal, or uncategorized.
+ *
+ * Uses the patterns defined in `studio-analysis.config.js` via the
+ * shared constants module.
+ *
  * @param {string} source - The import source path
  * @returns {'sanityUI' | 'otherUI' | 'internal' | null} - The category
  */
 function categorizeImportSource(source) {
-  // Sanity UI (includes @sanity/ui and @sanity/icons, but not @sanity/ui/theme)
-  if (/@sanity\/ui/.test(source) && !/@sanity\/ui\/theme/.test(source)) {
+  // Tracked UI library (configured in studio-analysis.config.js)
+  if (isTrackedUISource(source)) {
     return "sanityUI";
   }
 
-  // Sanity Icons is now part of Sanity UI ecosystem
-  if (/@sanity\/icons/.test(source)) {
-    return "sanityUI";
-  }
-
-  // Other UI libraries (no longer includes @sanity/icons)
-  if (/@radix-ui|styled-components|motion\/react|framer-motion/.test(source)) {
+  // Other UI libraries (configured in studio-analysis.config.js)
+  if (isOtherUISource(source)) {
     return "otherUI";
   }
 
@@ -391,27 +308,21 @@ function aggregateResults(fileResults) {
  * @returns {Promise<object|null>} - Aggregated analysis results
  */
 async function analyzeCodebase(codebase) {
-  const codebasePath = path.resolve(__dirname, `../../codebases/${codebase}`);
+  const cbPath =
+    CODEBASE_PATHS[codebase] ||
+    path.resolve(__dirname, `../../codebases/${codebase}`);
 
-  if (!fs.existsSync(codebasePath)) {
+  if (!fs.existsSync(cbPath)) {
     console.log(`⚠️  Skipping ${codebase}: path not found`);
     return null;
   }
 
   console.log(`\n📊 Analyzing ${codebase}...`);
 
-  // Find all TSX/JSX files
+  // Find all component files using the configured patterns
   const files = await glob("**/*.{tsx,jsx}", {
-    cwd: codebasePath,
-    ignore: [
-      "**/node_modules/**",
-      "**/dist/**",
-      "**/build/**",
-      "**/*.test.*",
-      "**/*.spec.*",
-      "**/__tests__/**",
-      "**/*.stories.*",
-    ],
+    cwd: cbPath,
+    ignore: DEFAULT_GLOB_IGNORE,
     absolute: true,
   });
 
@@ -442,7 +353,7 @@ function generateReport(results) {
 
   reportLines.push("═".repeat(80));
   reportLines.push(
-    "       UI COMPONENT SOURCE ANALYSIS - SANITY UI vs OTHER COMPONENTS",
+    `       UI COMPONENT SOURCE ANALYSIS - ${UI_LIBRARY_NAME.toUpperCase()} vs OTHER COMPONENTS`,
   );
   reportLines.push("═".repeat(80));
   reportLines.push("");
@@ -450,18 +361,22 @@ function generateReport(results) {
     "NOTE: All numbers are JSX element instances, not import counts.",
   );
   reportLines.push(
-    "      Sanity UI includes @sanity/ui components and @sanity/icons.",
+    `      ${UI_LIBRARY_NAME} is the tracked UI library (configured in studio-analysis.config.js).`,
   );
   reportLines.push(
-    "      Native HTML tag instances count against Sanity UI adoption.",
+    `      Native HTML tag instances count against ${UI_LIBRARY_NAME} adoption.`,
   );
   reportLines.push("");
 
   // Summary table
   reportLines.push("CODEBASE SUMMARY (JSX INSTANCES)");
   reportLines.push("-".repeat(100));
+  const libLabel =
+    UI_LIBRARY_NAME.length <= 9
+      ? UI_LIBRARY_NAME.padEnd(9)
+      : UI_LIBRARY_NAME.slice(0, 9);
   reportLines.push(
-    "Codebase    | Files    | Sanity UI | Other UI  | Internal  | HTML Tags | Total     | % Sanity UI",
+    `Codebase    | Files    | ${libLabel} | Other UI  | Internal  | HTML Tags | Total     | % ${UI_LIBRARY_NAME}`,
   );
   reportLines.push("-".repeat(100));
 
@@ -570,9 +485,7 @@ function generateReport(results) {
 
     // Top Sanity UI components (now includes icons)
     reportLines.push("");
-    reportLines.push(
-      "TOP 20 SANITY UI COMPONENTS (includes @sanity/ui and @sanity/icons)",
-    );
+    reportLines.push(`TOP 20 ${UI_LIBRARY_NAME.toUpperCase()} COMPONENTS`);
     reportLines.push("-".repeat(50));
 
     const sanityUISorted = Object.entries(data.sanityUI.components)
@@ -672,14 +585,18 @@ function generateReport(results) {
     const internalBar = "█".repeat(Math.round(parseFloat(internalPct) / 2));
     const htmlBar = "█".repeat(Math.round(parseFloat(htmlPct) / 2));
 
-    reportLines.push(`Sanity UI:  ${sanityBar.padEnd(50)} ${sanityPct}%`);
+    reportLines.push(
+      `${UI_LIBRARY_NAME}:${" ".repeat(Math.max(1, 12 - UI_LIBRARY_NAME.length))}${sanityBar.padEnd(50)} ${sanityPct}%`,
+    );
     reportLines.push(`Other UI:   ${otherBar.padEnd(50)} ${otherPct}%`);
     reportLines.push(`Internal:   ${internalBar.padEnd(50)} ${internalPct}%`);
     reportLines.push(`HTML Tags:  ${htmlBar.padEnd(50)} ${htmlPct}%`);
 
     // Internal components Sanity UI adoption
     reportLines.push("");
-    reportLines.push("INTERNAL COMPONENT SANITY UI ADOPTION");
+    reportLines.push(
+      `INTERNAL COMPONENT ${UI_LIBRARY_NAME.toUpperCase()} ADOPTION`,
+    );
     reportLines.push("-".repeat(50));
     const internalSanityPct =
       data.filesWithInternal > 0
@@ -690,7 +607,7 @@ function generateReport(results) {
         : "0.0";
     reportLines.push(`Files with internal imports: ${data.filesWithInternal}`);
     reportLines.push(
-      `Files also using Sanity UI:  ${data.filesWithInternalUsingSanityUI} (${internalSanityPct}%)`,
+      `Files also using ${UI_LIBRARY_NAME}:  ${data.filesWithInternalUsingSanityUI} (${internalSanityPct}%)`,
     );
   }
 
@@ -714,7 +631,9 @@ function generateReport(results) {
   }
 
   reportLines.push("");
-  reportLines.push("MOST USED SANITY UI COMPONENTS (ACROSS ALL CODEBASES)");
+  reportLines.push(
+    `MOST USED ${UI_LIBRARY_NAME.toUpperCase()} COMPONENTS (ACROSS ALL CODEBASES)`,
+  );
   reportLines.push("-".repeat(80));
   reportLines.push(
     "Rank | Component              | Total    | sanity   | canvas   | huey     (instances)",
@@ -750,7 +669,7 @@ function generateReport(results) {
     `1. Total JSX element instances across all codebases: ${grandTotal.total.toLocaleString()}`,
   );
   reportLines.push(
-    `2. Sanity UI instances (including icons): ${grandTotal.sanityUI.toLocaleString()} (${grandSanityPercent}% of total)`,
+    `2. ${UI_LIBRARY_NAME} instances: ${grandTotal.sanityUI.toLocaleString()} (${grandSanityPercent}% of total)`,
   );
   reportLines.push(
     `3. Other UI library instances: ${grandTotal.otherUI.toLocaleString()} (${((grandTotal.otherUI / grandTotal.total) * 100).toFixed(1)}% of total)`,
@@ -764,17 +683,17 @@ function generateReport(results) {
 
   if (allSanityUISorted.length > 0) {
     reportLines.push(
-      `6. Most used Sanity UI component: ${allSanityUISorted[0][0]} (${allSanityUISorted[0][1].total.toLocaleString()} instances)`,
+      `6. Most used ${UI_LIBRARY_NAME} component: ${allSanityUISorted[0][0]} (${allSanityUISorted[0][1].total.toLocaleString()} instances)`,
     );
   }
 
   const uniqueSanityUICount = Object.keys(allSanityUI).length;
   reportLines.push(
-    `7. Unique Sanity UI components used: ${uniqueSanityUICount}`,
+    `7. Unique ${UI_LIBRARY_NAME} components used: ${uniqueSanityUICount}`,
   );
 
   reportLines.push(
-    `8. Internal components using Sanity UI: ${grandTotal.filesWithInternalUsingSanityUI} of ${grandTotal.filesWithInternal} files (${grandInternalPercent}%)`,
+    `8. Internal components using ${UI_LIBRARY_NAME}: ${grandTotal.filesWithInternalUsingSanityUI} of ${grandTotal.filesWithInternal} files (${grandInternalPercent}%)`,
   );
 
   reportLines.push("");
@@ -790,14 +709,14 @@ function generateReport(results) {
  */
 function generateCSV(results) {
   const rows = [];
-  rows.push("Codebase,Category,Component,Instances");
+  rows.push(`Codebase,Category,Component,Instances`);
 
   for (const [codebase, data] of Object.entries(results)) {
     if (!data) continue;
 
-    // Sanity UI
+    // Tracked UI library
     for (const [comp, count] of Object.entries(data.sanityUI.components)) {
-      rows.push(`${codebase},Sanity UI,${comp},${count}`);
+      rows.push(`${codebase},${UI_LIBRARY_NAME},${comp},${count}`);
     }
 
     // Other UI
@@ -827,7 +746,7 @@ function generateCSV(results) {
 function generateJSON(results) {
   const summary = {
     generatedAt: new Date().toISOString(),
-    note: "All numbers are JSX element instances. Sanity UI includes @sanity/ui and @sanity/icons. Native HTML tag instances count against Sanity UI adoption.",
+    note: `All numbers are JSX element instances. ${UI_LIBRARY_NAME} is the tracked UI library. Native HTML tag instances count against ${UI_LIBRARY_NAME} adoption.`,
     codebases: {},
     totals: {
       files: 0,
@@ -959,10 +878,10 @@ async function main() {
     "NOTE: All numbers are JSX element instances (not import counts).",
   );
   console.log(
-    "      Sanity UI includes @sanity/ui components AND @sanity/icons.",
+    `      ${UI_LIBRARY_NAME} is the tracked UI library (from studio-analysis.config.js).`,
   );
   console.log(
-    "      Native HTML tag instances count against Sanity UI adoption.",
+    `      Native HTML tag instances count against ${UI_LIBRARY_NAME} adoption.`,
   );
 
   const results = {};
@@ -1029,7 +948,7 @@ async function main() {
             ).toFixed(1)
           : "0.0";
       console.log(
-        `${codebase.padEnd(10)}: ${data.sanityUI.totalInstances.toLocaleString().padStart(6)} Sanity UI / ${data.nativeHTML.totalInstances.toLocaleString().padStart(6)} HTML / ${data.total.totalInstances.toLocaleString().padStart(6)} total (${pct}% Sanity UI)`,
+        `${codebase.padEnd(10)}: ${data.sanityUI.totalInstances.toLocaleString().padStart(6)} ${UI_LIBRARY_NAME} / ${data.nativeHTML.totalInstances.toLocaleString().padStart(6)} HTML / ${data.total.totalInstances.toLocaleString().padStart(6)} total (${pct}% ${UI_LIBRARY_NAME})`,
       );
     }
   }
@@ -1038,11 +957,11 @@ async function main() {
   const totalPct =
     totalAll > 0 ? ((totalSanityUI / totalAll) * 100).toFixed(1) : "0.0";
   console.log(
-    `${"TOTAL".padEnd(10)}: ${totalSanityUI.toLocaleString().padStart(6)} Sanity UI / ${totalAll.toLocaleString().padStart(6)} total (${totalPct}%)`,
+    `${"TOTAL".padEnd(10)}: ${totalSanityUI.toLocaleString().padStart(6)} ${UI_LIBRARY_NAME} / ${totalAll.toLocaleString().padStart(6)} total (${totalPct}%)`,
   );
 
   console.log("");
-  console.log("INTERNAL COMPONENTS USING SANITY UI:");
+  console.log(`INTERNAL COMPONENTS USING ${UI_LIBRARY_NAME.toUpperCase()}:`);
   const internalPct =
     totalFilesWithInternal > 0
       ? (
@@ -1051,7 +970,7 @@ async function main() {
         ).toFixed(1)
       : "0.0";
   console.log(
-    `${totalFilesWithInternalUsingSanityUI} of ${totalFilesWithInternal} files with internal components also use Sanity UI (${internalPct}%)`,
+    `${totalFilesWithInternalUsingSanityUI} of ${totalFilesWithInternal} files with internal components also use ${UI_LIBRARY_NAME} (${internalPct}%)`,
   );
   console.log("");
 }
@@ -1070,9 +989,6 @@ module.exports = {
   generateReport,
   generateCSV,
   generateJSON,
-  CODEBASES,
-  UI_LIBRARIES,
-  SANITY_UI_COMPONENTS,
 };
 
 // Run main function if this is the entry point

@@ -12,17 +12,29 @@ const fs = require("fs");
 const path = require("path");
 const { glob } = require("glob");
 
-const { DEFAULT_GLOB_IGNORE } = require("./constants");
+const {
+  DEFAULT_GLOB_IGNORE,
+  CODEBASE_PATHS,
+  FILE_PATTERN,
+} = require("./constants");
 
 // ─── Finding files ────────────────────────────────────────────────────────────
 
 /**
  * Resolve the absolute path to a codebase directory.
  *
- * @param {string} codebase - Directory name under `codebases/`.
+ * Looks up the path in `CODEBASE_PATHS` (derived from the project
+ * config file).  Falls back to `codebases/<name>` relative to the
+ * project root if no config entry exists.
+ *
+ * @param {string} codebase - Codebase name (as defined in the config).
  * @returns {string} Absolute path.
  */
 function codebasePath(codebase) {
+  if (CODEBASE_PATHS[codebase]) {
+    return CODEBASE_PATHS[codebase];
+  }
+  // Fallback for codebases not in the config
   return path.resolve(__dirname, `../../codebases/${codebase}`);
 }
 
@@ -51,10 +63,7 @@ function codebaseExists(codebase) {
  * @returns {Promise<string[]>} Absolute file paths.
  */
 async function findFiles(codebase, options = {}) {
-  const {
-    pattern = "**/*.{tsx,jsx}",
-    ignore = [],
-  } = options;
+  const { pattern = FILE_PATTERN, ignore = [] } = options;
 
   const cwd = codebasePath(codebase);
   return glob(pattern, {
