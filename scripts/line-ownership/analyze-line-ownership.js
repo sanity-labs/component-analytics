@@ -5,16 +5,16 @@
  *
  * Line Ownership Analysis
  *
- * Measures the line-of-code footprint of Sanity UI across each codebase.
+ * Measures the line-of-code footprint of tracked UI library across each codebase.
  * For every TSX/JSX file:
  *
  *   1. Count the total lines in the file.
- *   2. Identify lines that belong to Sanity UI:
- *      a. Import lines from `@sanity/ui`
- *      b. Lines within Sanity UI JSX opening tags (the `<Component` line
+ *   2. Identify lines that belong to tracked UI library:
+ *      a. Import lines from the tracked UI library
+ *      b. Lines within tracked UI library JSX opening tags (the `<Component` line
  *         plus every continuation line of props through the closing `>`)
  *   3. Each physical line is counted at most once even if it contains
- *      multiple Sanity UI constructs.
+ *      multiple tracked UI library constructs.
  *   4. Sum across all files per codebase.
  *
  * Output:
@@ -31,8 +31,8 @@
 
 const {
   CODEBASES,
-  SANITY_UI_COMPONENTS,
-  UI_LIBRARY_NAME,
+  TRACKED_COMPONENTS,
+  UI_LIBRARY_NAMES,
   isTrackedUISource,
 } = require("../lib/constants");
 const { sortByCount, pct, incr } = require("../lib/utils");
@@ -89,19 +89,6 @@ function extractImports(content) {
 }
 
 /**
- * Check whether an import source belongs to the tracked UI library.
- *
- * Delegates to {@link isTrackedUISource} from `lib/constants`, which
- * derives the matching rules from `studio-analysis.config.js`.
- *
- * @param {string} source
- * @returns {boolean}
- */
-function isSanityUISource(source) {
-  return isTrackedUISource(source);
-}
-
-/**
  * Parse named imports into `{ original, local }` pairs.
  * Only returns PascalCase names.
  *
@@ -125,19 +112,19 @@ function parseNamedImports(namedImportsStr) {
 }
 
 /**
- * Build `{ localName → originalName }` for Sanity UI component imports.
+ * Build `{ localName → originalName }` for tracked UI library component imports.
  *
  * @param {string} content
  * @returns {Object<string, string>}
  */
-function buildSanityUIImportMap(content) {
+function buildTrackedUIImportMap(content) {
   const imports = extractImports(content);
   /** @type {Object<string, string>} */
   const map = {};
   for (const imp of imports) {
-    if (!isSanityUISource(imp.source)) continue;
+    if (!isTrackedUISource(imp.source)) continue;
     for (const { original, local } of parseNamedImports(imp.namedImports)) {
-      if (SANITY_UI_COMPONENTS.includes(original)) {
+      if (TRACKED_COMPONENTS.includes(original)) {
         map[local] = original;
       }
     }
@@ -229,7 +216,7 @@ function escapeRegex(s) {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
- * Collect the set of 1-based line numbers that are "owned" by Sanity UI
+ * Collect the set of 1-based line numbers that are "owned" by tracked UI library
  * import statements.
  *
  * An import like:
@@ -237,9 +224,9 @@ function escapeRegex(s) {
  *     import {
  *       Button,
  *       Card,
- *     } from '@sanity/ui'
+ *     } from '<tracked-ui-library>'
  *
- * …spans 4 lines, all of which are counted as Sanity UI lines.
+ * …spans 4 lines, all of which are counted as tracked UI library lines.
  *
  * To find the full extent of each import we scan from the match index
  * backward/forward to cover the entire statement (including multi-line
@@ -261,7 +248,7 @@ function collectImportLines(content, lineStarts) {
   while ((m = importRegex.exec(content)) !== null) {
     const fullMatch = m[0];
     const source = fullMatch.match(/from\s+['"]([^'"]+)['"]/);
-    if (!source || !isSanityUISource(source[1])) continue;
+    if (!source || !isTrackedUISource(source[1])) continue;
 
     const startOffset = m.index;
     const endOffset = m.index + fullMatch.length - 1;
@@ -278,7 +265,7 @@ function collectImportLines(content, lineStarts) {
 }
 
 /**
- * Collect the set of 1-based line numbers that are "owned" by Sanity UI
+ * Collect the set of 1-based line numbers that are "owned" by tracked UI library
  * JSX opening tags.
  *
  * For a tag like:
@@ -288,7 +275,7 @@ function collectImportLines(content, lineStarts) {
  *       tone="primary"
  *     >
  *
- * …lines 1–4 are all Sanity UI lines.  The span runs from the `<` of the
+ * …lines 1–4 are all tracked UI library lines.  The span runs from the `<` of the
  * opening tag through the closing `>`.
  *
  * @param {string}                  content
@@ -349,12 +336,12 @@ function collectTagLines(content, lineStarts, importMap) {
 /**
  * @typedef {object} FileLineMetrics
  * @property {number}  totalLines         - Total lines in the file.
- * @property {number}  sanityUILines      - Lines owned by Sanity UI (deduplicated).
- * @property {number}  importLines        - Lines from Sanity UI imports.
- * @property {number}  tagLines           - Lines from Sanity UI JSX tags.
- * @property {number}  tagCount           - Number of Sanity UI opening tags.
+ * @property {number}  trackedUILines      - Lines owned by tracked UI library (deduplicated).
+ * @property {number}  importLines        - Lines from tracked UI library imports.
+ * @property {number}  tagLines           - Lines from tracked UI library JSX tags.
+ * @property {number}  tagCount           - Number of tracked UI library opening tags.
  * @property {boolean} rendersUI          - Whether this file contains any JSX (React or HTML).
- * @property {Object<string, number>} linesByComponent - Sanity UI lines per component.
+ * @property {Object<string, number>} linesByComponent - tracked UI library lines per component.
  */
 
 /**
@@ -369,7 +356,7 @@ function collectTagLines(content, lineStarts, importMap) {
 function analyzeFileContent(content) {
   const totalLines = content === "" ? 0 : content.split("\n").length;
   const lineStarts = buildLineStarts(content);
-  const importMap = buildSanityUIImportMap(content);
+  const importMap = buildTrackedUIImportMap(content);
 
   const importResult = collectImportLines(content, lineStarts);
   const tagResult = collectTagLines(content, lineStarts, importMap);
@@ -386,7 +373,7 @@ function analyzeFileContent(content) {
 
   return {
     totalLines,
-    sanityUILines: allLines.size,
+    trackedUILines: allLines.size,
     importLines: importResult.importLineCount,
     tagLines: tagResult.tagLineCount,
     tagCount: tagResult.tagCount,
@@ -403,13 +390,13 @@ function analyzeFileContent(content) {
  * @typedef {object} CodebaseLineMetrics
  * @property {number} fileCount          - All files analysed.
  * @property {number} uiFileCount        - Files that render UI (contain JSX).
- * @property {number} filesWithSanityUI  - Files containing ≥ 1 Sanity UI line.
+ * @property {number} filesWithTrackedUI  - Files containing ≥ 1 tracked UI library line.
  * @property {number} totalLines         - Grand total lines across ALL files.
  * @property {number} uiFileLines        - Lines across UI-rendering files only.
- * @property {number} sanityUILines      - Total Sanity UI lines (deduplicated per file).
+ * @property {number} trackedUILines      - Total tracked UI library lines (deduplicated per file).
  * @property {number} importLines        - Total import lines.
  * @property {number} tagLines           - Total tag lines.
- * @property {number} tagCount           - Total Sanity UI tags.
+ * @property {number} tagCount           - Total tracked UI library tags.
  * @property {Object<string, number>} linesByComponent - Lines per component.
  */
 
@@ -424,10 +411,10 @@ function aggregateResults(fileResults) {
   const agg = {
     fileCount: fileResults.length,
     uiFileCount: 0,
-    filesWithSanityUI: 0,
+    filesWithTrackedUI: 0,
     totalLines: 0,
     uiFileLines: 0,
-    sanityUILines: 0,
+    trackedUILines: 0,
     importLines: 0,
     tagLines: 0,
     tagCount: 0,
@@ -436,7 +423,7 @@ function aggregateResults(fileResults) {
 
   for (const result of fileResults) {
     agg.totalLines += result.totalLines;
-    agg.sanityUILines += result.sanityUILines;
+    agg.trackedUILines += result.trackedUILines;
     agg.importLines += result.importLines;
     agg.tagLines += result.tagLines;
     agg.tagCount += result.tagCount;
@@ -446,8 +433,8 @@ function aggregateResults(fileResults) {
       agg.uiFileLines += result.totalLines;
     }
 
-    if (result.sanityUILines > 0) {
-      agg.filesWithSanityUI++;
+    if (result.trackedUILines > 0) {
+      agg.filesWithTrackedUI++;
     }
 
     for (const [comp, lines] of Object.entries(result.linesByComponent)) {
@@ -472,21 +459,21 @@ function generateTextReport(results) {
   const lines = [];
 
   lines.push("═".repeat(90));
-  lines.push(`  ${UI_LIBRARY_NAME.toUpperCase()} LINE OWNERSHIP ANALYSIS`);
+  lines.push(`  ${UI_LIBRARY_NAMES.toUpperCase()} LINE OWNERSHIP ANALYSIS`);
   lines.push("═".repeat(90));
   lines.push("");
   lines.push(
-    `  Measures the line-of-code footprint of ${UI_LIBRARY_NAME} in each codebase.`,
+    `  Measures the line-of-code footprint of ${UI_LIBRARY_NAMES} in each codebase.`,
   );
   lines.push(
     "  Only files that render UI (contain JSX) are included in the denominator.",
   );
   lines.push("  Pure logic files (hooks, types, utilities) are excluded.");
   lines.push(
-    `  A line is counted as '${UI_LIBRARY_NAME}' if it is part of a tracked library import`,
+    `  A line is counted as '${UI_LIBRARY_NAMES}' if it is part of a tracked library import`,
   );
   lines.push(
-    `  statement or falls within a ${UI_LIBRARY_NAME} JSX opening tag (including`,
+    `  statement or falls within a ${UI_LIBRARY_NAMES} JSX opening tag (including`,
   );
   lines.push(
     "  multi-line prop spans).  Each physical line is counted at most once.",
@@ -499,10 +486,10 @@ function generateTextReport(results) {
   const grand = {
     fileCount: 0,
     uiFileCount: 0,
-    filesWithSanityUI: 0,
+    filesWithTrackedUI: 0,
     totalLines: 0,
     uiFileLines: 0,
-    sanityUILines: 0,
+    trackedUILines: 0,
     importLines: 0,
     tagLines: 0,
     tagCount: 0,
@@ -514,10 +501,10 @@ function generateTextReport(results) {
 
     grand.fileCount += data.fileCount;
     grand.uiFileCount += data.uiFileCount;
-    grand.filesWithSanityUI += data.filesWithSanityUI;
+    grand.filesWithTrackedUI += data.filesWithTrackedUI;
     grand.totalLines += data.totalLines;
     grand.uiFileLines += data.uiFileLines;
-    grand.sanityUILines += data.sanityUILines;
+    grand.trackedUILines += data.trackedUILines;
     grand.importLines += data.importLines;
     grand.tagLines += data.tagLines;
     grand.tagCount += data.tagCount;
@@ -525,7 +512,7 @@ function generateTextReport(results) {
       incr(grand.linesByComponent, comp, count);
     }
 
-    const p = pct(data.sanityUILines, data.uiFileLines);
+    const p = pct(data.trackedUILines, data.uiFileLines);
 
     lines.push("─".repeat(90));
     lines.push(`  CODEBASE: ${codebase.toUpperCase()}`);
@@ -538,10 +525,10 @@ function generateTextReport(results) {
       `  UI files (with JSX):         ${data.uiFileCount.toLocaleString()}`,
     );
     lines.push(
-      `  Files with ${UI_LIBRARY_NAME}:${" ".repeat(Math.max(1, 23 - UI_LIBRARY_NAME.length))}${data.filesWithSanityUI.toLocaleString()}`,
+      `  Files with ${UI_LIBRARY_NAMES}:${" ".repeat(Math.max(1, 23 - UI_LIBRARY_NAMES.length))}${data.filesWithTrackedUI.toLocaleString()}`,
     );
     lines.push(
-      `  ${UI_LIBRARY_NAME} tags found:${" ".repeat(Math.max(1, 23 - UI_LIBRARY_NAME.length))}${data.tagCount.toLocaleString()}`,
+      `  ${UI_LIBRARY_NAMES} tags found:${" ".repeat(Math.max(1, 23 - UI_LIBRARY_NAMES.length))}${data.tagCount.toLocaleString()}`,
     );
     lines.push("");
     lines.push(
@@ -551,7 +538,7 @@ function generateTextReport(results) {
       `  UI file lines:               ${data.uiFileLines.toLocaleString()}`,
     );
     lines.push(
-      `  ${UI_LIBRARY_NAME} lines:${" ".repeat(Math.max(1, 29 - UI_LIBRARY_NAME.length))}${data.sanityUILines.toLocaleString()}`,
+      `  ${UI_LIBRARY_NAMES} lines:${" ".repeat(Math.max(1, 29 - UI_LIBRARY_NAMES.length))}${data.trackedUILines.toLocaleString()}`,
     );
     lines.push(
       `    ├─ Import lines:           ${data.importLines.toLocaleString()}`,
@@ -592,7 +579,7 @@ function generateTextReport(results) {
             comp.padEnd(28) +
             count.toLocaleString().padStart(10) +
             "  " +
-            (pct(count, data.sanityUILines) + "%").padStart(13) +
+            (pct(count, data.trackedUILines) + "%").padStart(13) +
             "  " +
             (pct(count, data.uiFileLines) + "%").padStart(13),
         );
@@ -614,10 +601,10 @@ function generateTextReport(results) {
     `  UI files (with JSX):         ${grand.uiFileCount.toLocaleString()}`,
   );
   lines.push(
-    `  Files with ${UI_LIBRARY_NAME}:${" ".repeat(Math.max(1, 23 - UI_LIBRARY_NAME.length))}${grand.filesWithSanityUI.toLocaleString()}`,
+    `  Files with ${UI_LIBRARY_NAMES}:${" ".repeat(Math.max(1, 23 - UI_LIBRARY_NAMES.length))}${grand.filesWithTrackedUI.toLocaleString()}`,
   );
   lines.push(
-    `  ${UI_LIBRARY_NAME} tags:${" ".repeat(Math.max(1, 30 - UI_LIBRARY_NAME.length))}${grand.tagCount.toLocaleString()}`,
+    `  ${UI_LIBRARY_NAMES} tags:${" ".repeat(Math.max(1, 30 - UI_LIBRARY_NAMES.length))}${grand.tagCount.toLocaleString()}`,
   );
   lines.push("");
   lines.push(
@@ -627,7 +614,7 @@ function generateTextReport(results) {
     `  UI file lines:               ${grand.uiFileLines.toLocaleString()}`,
   );
   lines.push(
-    `  ${UI_LIBRARY_NAME} lines:${" ".repeat(Math.max(1, 29 - UI_LIBRARY_NAME.length))}${grand.sanityUILines.toLocaleString()}`,
+    `  ${UI_LIBRARY_NAMES} lines:${" ".repeat(Math.max(1, 29 - UI_LIBRARY_NAMES.length))}${grand.trackedUILines.toLocaleString()}`,
   );
   lines.push(
     `    ├─ Import lines:           ${grand.importLines.toLocaleString()}`,
@@ -636,7 +623,7 @@ function generateTextReport(results) {
     `    └─ JSX tag lines:          ${grand.tagLines.toLocaleString()}`,
   );
   lines.push(
-    `  Line ownership (UI):         ${pct(grand.sanityUILines, grand.uiFileLines)}%`,
+    `  Line ownership (UI):         ${pct(grand.trackedUILines, grand.uiFileLines)}%`,
   );
   lines.push("");
 
@@ -680,13 +667,13 @@ function generateTextReport(results) {
         "  " +
         data.uiFileLines.toLocaleString().padStart(11) +
         "  " +
-        data.sanityUILines.toLocaleString().padStart(10) +
+        data.trackedUILines.toLocaleString().padStart(10) +
         "  " +
         data.importLines.toLocaleString().padStart(8) +
         "  " +
         data.tagLines.toLocaleString().padStart(8) +
         "  " +
-        (pct(data.sanityUILines, data.uiFileLines) + "%").padStart(8) +
+        (pct(data.trackedUILines, data.uiFileLines) + "%").padStart(8) +
         "  " +
         data.tagCount.toLocaleString().padStart(7) +
         "  " +
@@ -706,13 +693,13 @@ function generateTextReport(results) {
       "  " +
       grand.uiFileLines.toLocaleString().padStart(11) +
       "  " +
-      grand.sanityUILines.toLocaleString().padStart(10) +
+      grand.trackedUILines.toLocaleString().padStart(10) +
       "  " +
       grand.importLines.toLocaleString().padStart(8) +
       "  " +
       grand.tagLines.toLocaleString().padStart(8) +
       "  " +
-      (pct(grand.sanityUILines, grand.uiFileLines) + "%").padStart(8) +
+      (pct(grand.trackedUILines, grand.uiFileLines) + "%").padStart(8) +
       "  " +
       grand.tagCount.toLocaleString().padStart(7) +
       "  " +
@@ -744,7 +731,7 @@ function generateTextReport(results) {
           comp.padEnd(28) +
           count.toLocaleString().padStart(10) +
           "  " +
-          (pct(count, grand.sanityUILines) + "%").padStart(13) +
+          (pct(count, grand.trackedUILines) + "%").padStart(13) +
           "  " +
           (pct(count, grand.uiFileLines) + "%").padStart(13),
       );
@@ -773,7 +760,7 @@ function generateCSV(results) {
 
   // Section 1: Codebase summary
   rows.push(
-    `Codebase,Total Files,UI Files,Files with ${UI_LIBRARY_NAME},Total Lines,UI File Lines,${UI_LIBRARY_NAME} Lines,Import Lines,JSX Tag Lines,Line Ownership % (UI),Tags,Avg Lines per Tag`,
+    `Codebase,Total Files,UI Files,Files with ${UI_LIBRARY_NAMES},Total Lines,UI File Lines,${UI_LIBRARY_NAMES} Lines,Import Lines,JSX Tag Lines,Line Ownership % (UI),Tags,Avg Lines per Tag`,
   );
 
   let grandTotal = 0;
@@ -788,7 +775,7 @@ function generateCSV(results) {
     if (!data) continue;
     grandTotal += data.totalLines;
     grandUILines += data.uiFileLines;
-    grandUI += data.sanityUILines;
+    grandUI += data.trackedUILines;
     grandImport += data.importLines;
     grandTag += data.tagLines;
     grandTags += data.tagCount;
@@ -802,13 +789,13 @@ function generateCSV(results) {
         codebase,
         data.fileCount,
         data.uiFileCount,
-        data.filesWithSanityUI,
+        data.filesWithTrackedUI,
         data.totalLines,
         data.uiFileLines,
-        data.sanityUILines,
+        data.trackedUILines,
         data.importLines,
         data.tagLines,
-        pct(data.sanityUILines, data.uiFileLines) + "%",
+        pct(data.trackedUILines, data.uiFileLines) + "%",
         data.tagCount,
         avg,
       ].join(","),
@@ -847,7 +834,7 @@ function generateCSV(results) {
           `"${comp}"`,
           codebase,
           count,
-          pct(count, data.sanityUILines) + "%",
+          pct(count, data.trackedUILines) + "%",
           pct(count, data.uiFileLines) + "%",
         ].join(","),
       );
@@ -879,7 +866,7 @@ function generateJSON(results) {
   let grandTags = 0;
   let grandFiles = 0;
   let grandUIFiles = 0;
-  let grandFilesWithSanityUI = 0;
+  let grandFilesWithTrackedUI = 0;
   /** @type {Object<string, number>} */
   const grandByComponent = {};
 
@@ -888,13 +875,13 @@ function generateJSON(results) {
 
     grandTotal += data.totalLines;
     grandUILines += data.uiFileLines;
-    grandUI += data.sanityUILines;
+    grandUI += data.trackedUILines;
     grandImport += data.importLines;
     grandTag += data.tagLines;
     grandTags += data.tagCount;
     grandFiles += data.fileCount;
     grandUIFiles += data.uiFileCount;
-    grandFilesWithSanityUI += data.filesWithSanityUI;
+    grandFilesWithTrackedUI += data.filesWithTrackedUI;
 
     for (const [comp, count] of Object.entries(data.linesByComponent)) {
       incr(grandByComponent, comp, count);
@@ -905,16 +892,16 @@ function generateJSON(results) {
     codebaseSummaries[codebase] = {
       fileCount: data.fileCount,
       uiFileCount: data.uiFileCount,
-      filesWithSanityUI: data.filesWithSanityUI,
+      filesWithTrackedUI: data.filesWithTrackedUI,
       totalLines: data.totalLines,
       uiFileLines: data.uiFileLines,
-      sanityUILines: data.sanityUILines,
+      trackedUILines: data.trackedUILines,
       importLines: data.importLines,
       tagLines: data.tagLines,
       lineOwnershipPercent: parseFloat(
-        pct(data.sanityUILines, data.uiFileLines),
+        pct(data.trackedUILines, data.uiFileLines),
       ),
-      sanityUITagCount: data.tagCount,
+      trackedUITagCount: data.tagCount,
       avgLinesPerTag:
         data.tagCount > 0
           ? parseFloat((data.tagLines / data.tagCount).toFixed(2))
@@ -922,7 +909,7 @@ function generateJSON(results) {
       topComponents: sorted.slice(0, 20).map(([comp, count]) => ({
         component: comp,
         lines: count,
-        percentOfUILines: parseFloat(pct(count, data.sanityUILines)),
+        percentOfUILines: parseFloat(pct(count, data.trackedUILines)),
         percentOfUICode: parseFloat(pct(count, data.uiFileLines)),
       })),
     };
@@ -936,14 +923,14 @@ function generateJSON(results) {
     aggregate: {
       totalFiles: grandFiles,
       uiFileCount: grandUIFiles,
-      filesWithSanityUI: grandFilesWithSanityUI,
+      filesWithTrackedUI: grandFilesWithTrackedUI,
       totalLines: grandTotal,
       uiFileLines: grandUILines,
-      sanityUILines: grandUI,
+      trackedUILines: grandUI,
       importLines: grandImport,
       tagLines: grandTag,
       lineOwnershipPercent: parseFloat(pct(grandUI, grandUILines)),
-      sanityUITagCount: grandTags,
+      trackedUITagCount: grandTags,
       avgLinesPerTag:
         grandTags > 0 ? parseFloat((grandTag / grandTags).toFixed(2)) : 0,
       topComponents: grandSorted.slice(0, 20).map(([comp, count]) => ({
@@ -991,7 +978,7 @@ async function analyzeCodebase(codebase) {
   const agg = aggregateResults(fileResults);
 
   console.log(
-    `   ${agg.uiFileCount} UI files (${agg.uiFileLines.toLocaleString()} lines), ${agg.sanityUILines.toLocaleString()} ${UI_LIBRARY_NAME} lines (${pct(agg.sanityUILines, agg.uiFileLines)}%)`,
+    `   ${agg.uiFileCount} UI files (${agg.uiFileLines.toLocaleString()} lines), ${agg.trackedUILines.toLocaleString()} ${UI_LIBRARY_NAMES} lines (${pct(agg.trackedUILines, agg.uiFileLines)}%)`,
   );
 
   return agg;
@@ -1008,7 +995,7 @@ async function analyzeCodebase(codebase) {
  */
 async function main() {
   console.log("═".repeat(60));
-  console.log(`  ${UI_LIBRARY_NAME.toUpperCase()} LINE OWNERSHIP ANALYSIS`);
+  console.log(`  ${UI_LIBRARY_NAMES.toUpperCase()} LINE OWNERSHIP ANALYSIS`);
   console.log("═".repeat(60));
 
   /** @type {Object<string, CodebaseLineMetrics | null>} */
@@ -1018,7 +1005,7 @@ async function main() {
     results[codebase] = await analyzeCodebase(codebase);
   }
 
-  writeReports("line-ownership", "line-ownership", {
+  writeReports("line-ownership", "report", {
     text: generateTextReport(results),
     csv: generateCSV(results),
     json: generateJSON(results),
@@ -1039,9 +1026,9 @@ async function main() {
   for (const [codebase, data] of Object.entries(results)) {
     if (!data) continue;
     grandTotal += data.uiFileLines;
-    grandUI += data.sanityUILines;
+    grandUI += data.trackedUILines;
     console.log(
-      `  ${codebase.padEnd(12)}: ${data.uiFileLines.toLocaleString().padStart(9)} UI lines, ${data.sanityUILines.toLocaleString().padStart(7)} SUI lines → ${pct(data.sanityUILines, data.uiFileLines)}%`,
+      `  ${codebase.padEnd(12)}: ${data.uiFileLines.toLocaleString().padStart(9)} UI lines, ${data.trackedUILines.toLocaleString().padStart(7)} SUI lines → ${pct(data.trackedUILines, data.uiFileLines)}%`,
     );
   }
 
@@ -1065,8 +1052,8 @@ module.exports = {
   // Import parsing
   extractImports,
   parseNamedImports,
-  isSanityUISource,
-  buildSanityUIImportMap,
+  isTrackedUISource,
+  buildTrackedUIImportMap,
 
   // Line utilities
   buildLineStarts,

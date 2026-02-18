@@ -1,10 +1,10 @@
 /**
  * @module lib/config-schema
  *
- * JSDoc type definitions for the studio-analysis configuration file.
+ * JSDoc type definitions for the component-analytics configuration file.
  *
  * These types are not enforced at runtime — they exist solely to
- * provide IntelliSense and documentation for `studio-analysis.config.js`.
+ * provide IntelliSense and documentation for `component-analytics.config.js`.
  */
 
 /**
@@ -15,12 +15,12 @@
 
 /**
  * @typedef {object} UILibrary
- * @property {string}   name           - Human-readable library name (e.g. "Sanity UI").
+ * @property {string}   name           - Human-readable library name (e.g. "My Design System").
  * @property {string[]} importSources  - Package names that identify this library
  *   in import statements.  Matched as substrings against the import path, so
- *   `"@sanity/ui"` matches `import { Button } from '@sanity/ui'`.
+ *   `"@my-org/ui"` matches `import { Button } from '@my-org/ui'`.
  * @property {string[]} excludeSources - Import paths to ignore even if they
- *   match an `importSource`.  For example, `"@sanity/ui/theme"` excludes
+ *   match an `importSource`.  For example, `"@my-org/ui/theme"` excludes
  *   theme-only imports from being counted as component usage.
  * @property {string[]} components     - PascalCase component export names to
  *   track (e.g. `"Button"`, `"Card"`, `"Flex"`).

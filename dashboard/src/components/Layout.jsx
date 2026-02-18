@@ -94,7 +94,7 @@ export function Layout({ activePage, onNavigate, children }) {
         <Stack space={4}>
           <Box paddingX={2} paddingY={3}>
             <Stack space={2}>
-              <Heading size={1}>Studio Analysis</Heading>
+              <Heading size={1}>Component Analytics</Heading>
               <Text size={0} muted>
                 Dashboard
               </Text>

@@ -26,7 +26,7 @@
  *     evidence and confidence level.
  *
  *   - Optionally prints a config-ready snippet that can be pasted
- *     directly into `studio-analysis.config.js`.
+ *     directly into `component-analytics.config.js`.
  *
  * Run directly:
  *   node scripts/per-component/detect-prop-defaults.js
@@ -38,7 +38,7 @@
 const fs = require("fs");
 const path = require("path");
 
-const { SANITY_UI_COMPONENTS } = require("../lib/constants");
+const { TRACKED_COMPONENTS } = require("../lib/constants");
 const { sortByCount } = require("../lib/utils");
 const { ensureDir, reportDir } = require("../lib/files");
 
@@ -63,7 +63,15 @@ const KNOWN_DEFAULT_VALUES = {
   // ── By prop name ────────────────────────────────────────────────────────
   mode: new Set(['"default"']),
   tone: new Set(['"default"']),
-  as: new Set(['"div"', '"span"', '"button"', '"a"', '"label"', '"h2"', '"code"']),
+  as: new Set([
+    '"div"',
+    '"span"',
+    '"button"',
+    '"a"',
+    '"label"',
+    '"h2"',
+    '"code"',
+  ]),
   type: new Set(['"button"', '"text"']),
   direction: new Set(['"row"']),
   align: new Set(['"stretch"']),
@@ -72,7 +80,7 @@ const KNOWN_DEFAULT_VALUES = {
   weight: new Set(['"regular"']),
   placement: new Set(['"top"', '"bottom"']),
   position: new Set(['"fixed"', '"relative"']),
-  size: new Set(['"2"', '"0"', '0', '2']),
+  size: new Set(['"2"', '"0"', "0", "2"]),
   animated: new Set(["true"]),
   overflow: new Set(['"visible"']),
   display: new Set(['"block"', '"flex"']),
@@ -165,21 +173,27 @@ function detectPropDefault(component, propName, propData, totalInstances) {
         // If this value is the LEAST used (or among the least), high confidence
         const count = values[candidate];
         const isMinority = sorted.length > 1 && count <= sorted[0][1] * 0.5;
-        const isLiteral = candidate === '"default"' || candidate === '"regular"';
+        const isLiteral =
+          candidate === '"default"' || candidate === '"regular"';
 
-        const confidence =
-          isLiteral ? "high" :
-          isMinority ? "high" :
-          sorted.length === 1 ? "medium" :
-          "medium";
+        const confidence = isLiteral
+          ? "high"
+          : isMinority
+            ? "high"
+            : sorted.length === 1
+              ? "medium"
+              : "medium";
 
         return {
           component,
           prop: propName,
           value: candidate,
           confidence,
-          reason: `Known default pattern: ${propName}=${candidate}` +
-            (isMinority ? ` (${count} of ${totalUsages} usages — minority value)` : ""),
+          reason:
+            `Known default pattern: ${propName}=${candidate}` +
+            (isMinority
+              ? ` (${count} of ${totalUsages} usages — minority value)`
+              : ""),
           count,
           total: totalUsages,
         };
@@ -251,7 +265,7 @@ function detectPropDefault(component, propName, propData, totalInstances) {
  */
 function loadComponentReport(component) {
   const filePath = path.join(
-    reportDir("per-component"),
+    reportDir("components"),
     "components",
     `${component}.json`,
   );
@@ -278,7 +292,7 @@ function detectAllDefaults() {
   /** @type {DetectedDefault[]} */
   const results = [];
 
-  for (const component of SANITY_UI_COMPONENTS) {
+  for (const component of TRACKED_COMPONENTS) {
     const report = loadComponentReport(component);
     if (!report || !report.props) continue;
 
@@ -286,12 +300,23 @@ function detectAllDefaults() {
 
     for (const [propName, propData] of Object.entries(report.props)) {
       // Skip event handlers and internal props — they don't have meaningful defaults
-      if (propName.startsWith("on") && propName.length > 2 && /[A-Z]/.test(propName[2])) continue;
-      if (propName === "key" || propName === "ref" || propName === "children") continue;
+      if (
+        propName.startsWith("on") &&
+        propName.length > 2 &&
+        /[A-Z]/.test(propName[2])
+      )
+        continue;
+      if (propName === "key" || propName === "ref" || propName === "children")
+        continue;
       if (propName.startsWith("data-")) continue;
       if (propName.startsWith("aria-")) continue;
 
-      const detected = detectPropDefault(component, propName, propData, totalInstances);
+      const detected = detectPropDefault(
+        component,
+        propName,
+        propData,
+        totalInstances,
+      );
       if (detected) {
         results.push(detected);
       }
@@ -301,7 +326,9 @@ function detectAllDefaults() {
   // Sort by confidence (high first), then component, then prop
   const confidenceOrder = { high: 0, medium: 1, low: 2 };
   results.sort((a, b) => {
-    const co = (confidenceOrder[a.confidence] || 3) - (confidenceOrder[b.confidence] || 3);
+    const co =
+      (confidenceOrder[a.confidence] || 3) -
+      (confidenceOrder[b.confidence] || 3);
     if (co !== 0) return co;
     const cn = a.component.localeCompare(b.component);
     if (cn !== 0) return cn;
@@ -432,7 +459,7 @@ function buildTextOutput(results) {
   lines.push("═".repeat(90));
   lines.push("");
   lines.push("  Paste this into the `propDefaults` section of your");
-  lines.push("  `studio-analysis.config.js` uiLibraries entry:");
+  lines.push("  `component-analytics.config.js` uiLibraries entry:");
   lines.push("");
   lines.push("  ```js");
   lines.push("  propDefaults: {");
@@ -480,7 +507,7 @@ function main() {
   console.log("");
 
   // Check that per-component reports exist
-  const componentsDir = path.join(reportDir("per-component"), "components");
+  const componentsDir = path.join(reportDir("components"), "detail");
   if (!fs.existsSync(componentsDir)) {
     console.error(
       "❌ Per-component reports not found. Run `npm run analyze:per-component` first.",
@@ -502,7 +529,7 @@ function main() {
   );
 
   // Write reports
-  const outDir = reportDir("per-component");
+  const outDir = reportDir("components");
   ensureDir(outDir);
 
   const jsonOutput = buildJsonOutput(results);

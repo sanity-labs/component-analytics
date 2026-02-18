@@ -1,6 +1,6 @@
 const {
   CODEBASES,
-  SANITY_UI_COMPONENTS,
+  TRACKED_COMPONENTS,
   HTML_TAG_CATEGORIES,
   KNOWN_TAGS,
   DEFAULT_GLOB_IGNORE,
@@ -54,82 +54,82 @@ describe("lib/constants", () => {
     });
   });
 
-  describe("SANITY_UI_COMPONENTS", () => {
+  describe("TRACKED_COMPONENTS", () => {
     test("is a non-empty array of strings", () => {
-      expect(Array.isArray(SANITY_UI_COMPONENTS)).toBe(true);
-      expect(SANITY_UI_COMPONENTS.length).toBeGreaterThan(0);
-      for (const comp of SANITY_UI_COMPONENTS) {
+      expect(Array.isArray(TRACKED_COMPONENTS)).toBe(true);
+      expect(TRACKED_COMPONENTS.length).toBeGreaterThan(0);
+      for (const comp of TRACKED_COMPONENTS) {
         expect(typeof comp).toBe("string");
       }
     });
 
     test("all entries are PascalCase", () => {
-      for (const comp of SANITY_UI_COMPONENTS) {
+      for (const comp of TRACKED_COMPONENTS) {
         expect(comp[0]).toBe(comp[0].toUpperCase());
       }
     });
 
     test("includes core layout components", () => {
-      expect(SANITY_UI_COMPONENTS).toContain("Box");
-      expect(SANITY_UI_COMPONENTS).toContain("Flex");
-      expect(SANITY_UI_COMPONENTS).toContain("Grid");
-      expect(SANITY_UI_COMPONENTS).toContain("Stack");
-      expect(SANITY_UI_COMPONENTS).toContain("Inline");
-      expect(SANITY_UI_COMPONENTS).toContain("Container");
+      expect(TRACKED_COMPONENTS).toContain("Box");
+      expect(TRACKED_COMPONENTS).toContain("Flex");
+      expect(TRACKED_COMPONENTS).toContain("Grid");
+      expect(TRACKED_COMPONENTS).toContain("Stack");
+      expect(TRACKED_COMPONENTS).toContain("Inline");
+      expect(TRACKED_COMPONENTS).toContain("Container");
     });
 
     test("includes interactive components", () => {
-      expect(SANITY_UI_COMPONENTS).toContain("Button");
-      expect(SANITY_UI_COMPONENTS).toContain("Card");
-      expect(SANITY_UI_COMPONENTS).toContain("Dialog");
-      expect(SANITY_UI_COMPONENTS).toContain("Menu");
-      expect(SANITY_UI_COMPONENTS).toContain("MenuItem");
-      expect(SANITY_UI_COMPONENTS).toContain("Popover");
-      expect(SANITY_UI_COMPONENTS).toContain("Tooltip");
+      expect(TRACKED_COMPONENTS).toContain("Button");
+      expect(TRACKED_COMPONENTS).toContain("Card");
+      expect(TRACKED_COMPONENTS).toContain("Dialog");
+      expect(TRACKED_COMPONENTS).toContain("Menu");
+      expect(TRACKED_COMPONENTS).toContain("MenuItem");
+      expect(TRACKED_COMPONENTS).toContain("Popover");
+      expect(TRACKED_COMPONENTS).toContain("Tooltip");
     });
 
     test("includes typography components", () => {
-      expect(SANITY_UI_COMPONENTS).toContain("Text");
-      expect(SANITY_UI_COMPONENTS).toContain("Heading");
-      expect(SANITY_UI_COMPONENTS).toContain("Code");
-      expect(SANITY_UI_COMPONENTS).toContain("Badge");
-      expect(SANITY_UI_COMPONENTS).toContain("KBD");
+      expect(TRACKED_COMPONENTS).toContain("Text");
+      expect(TRACKED_COMPONENTS).toContain("Heading");
+      expect(TRACKED_COMPONENTS).toContain("Code");
+      expect(TRACKED_COMPONENTS).toContain("Badge");
+      expect(TRACKED_COMPONENTS).toContain("KBD");
     });
 
     test("includes form components", () => {
-      expect(SANITY_UI_COMPONENTS).toContain("TextInput");
-      expect(SANITY_UI_COMPONENTS).toContain("TextArea");
-      expect(SANITY_UI_COMPONENTS).toContain("Checkbox");
-      expect(SANITY_UI_COMPONENTS).toContain("Select");
-      expect(SANITY_UI_COMPONENTS).toContain("Switch");
-      expect(SANITY_UI_COMPONENTS).toContain("Radio");
-      expect(SANITY_UI_COMPONENTS).toContain("Autocomplete");
-      expect(SANITY_UI_COMPONENTS).toContain("Label");
+      expect(TRACKED_COMPONENTS).toContain("TextInput");
+      expect(TRACKED_COMPONENTS).toContain("TextArea");
+      expect(TRACKED_COMPONENTS).toContain("Checkbox");
+      expect(TRACKED_COMPONENTS).toContain("Select");
+      expect(TRACKED_COMPONENTS).toContain("Switch");
+      expect(TRACKED_COMPONENTS).toContain("Radio");
+      expect(TRACKED_COMPONENTS).toContain("Autocomplete");
+      expect(TRACKED_COMPONENTS).toContain("Label");
     });
 
     test("includes feedback components", () => {
-      expect(SANITY_UI_COMPONENTS).toContain("Spinner");
-      expect(SANITY_UI_COMPONENTS).toContain("Toast");
+      expect(TRACKED_COMPONENTS).toContain("Spinner");
+      expect(TRACKED_COMPONENTS).toContain("Toast");
     });
 
     test("includes data display components", () => {
-      expect(SANITY_UI_COMPONENTS).toContain("Avatar");
-      expect(SANITY_UI_COMPONENTS).toContain("AvatarStack");
-      expect(SANITY_UI_COMPONENTS).toContain("Skeleton");
-      expect(SANITY_UI_COMPONENTS).toContain("TextSkeleton");
+      expect(TRACKED_COMPONENTS).toContain("Avatar");
+      expect(TRACKED_COMPONENTS).toContain("AvatarStack");
+      expect(TRACKED_COMPONENTS).toContain("Skeleton");
+      expect(TRACKED_COMPONENTS).toContain("TextSkeleton");
     });
 
     test("includes utility/provider components", () => {
-      expect(SANITY_UI_COMPONENTS).toContain("Portal");
-      expect(SANITY_UI_COMPONENTS).toContain("Layer");
-      expect(SANITY_UI_COMPONENTS).toContain("ThemeProvider");
-      expect(SANITY_UI_COMPONENTS).toContain("LayerProvider");
-      expect(SANITY_UI_COMPONENTS).toContain("ErrorBoundary");
+      expect(TRACKED_COMPONENTS).toContain("Portal");
+      expect(TRACKED_COMPONENTS).toContain("Layer");
+      expect(TRACKED_COMPONENTS).toContain("ThemeProvider");
+      expect(TRACKED_COMPONENTS).toContain("LayerProvider");
+      expect(TRACKED_COMPONENTS).toContain("ErrorBoundary");
     });
 
     test("has no duplicates", () => {
-      const unique = new Set(SANITY_UI_COMPONENTS);
-      expect(unique.size).toBe(SANITY_UI_COMPONENTS.length);
+      const unique = new Set(TRACKED_COMPONENTS);
+      expect(unique.size).toBe(TRACKED_COMPONENTS.length);
     });
   });
 
@@ -627,7 +627,7 @@ describe("lib/files", () => {
     test("creates a directory that does not exist", () => {
       const tmpDir = path.join(
         os.tmpdir(),
-        `studio-analysis-test-${Date.now()}`,
+        `component-analytics-test-${Date.now()}`,
       );
       expect(fs.existsSync(tmpDir)).toBe(false);
 
@@ -641,7 +641,7 @@ describe("lib/files", () => {
     test("does not throw when directory already exists", () => {
       const tmpDir = path.join(
         os.tmpdir(),
-        `studio-analysis-test-${Date.now()}`,
+        `component-analytics-test-${Date.now()}`,
       );
       fs.mkdirSync(tmpDir, { recursive: true });
 
@@ -654,7 +654,7 @@ describe("lib/files", () => {
     test("creates nested directories", () => {
       const tmpDir = path.join(
         os.tmpdir(),
-        `studio-analysis-test-${Date.now()}`,
+        `component-analytics-test-${Date.now()}`,
         "a",
         "b",
         "c",
@@ -668,7 +668,7 @@ describe("lib/files", () => {
       fs.rmSync(
         path.join(
           os.tmpdir(),
-          `studio-analysis-test-${path.basename(path.resolve(tmpDir, "../../.."))}`,
+          `component-analytics-test-${path.basename(path.resolve(tmpDir, "../../.."))}`,
         ),
         { recursive: true, force: true },
       );
@@ -755,8 +755,8 @@ describe("Cross-module integration", () => {
     expect(sorted[0][0]).toBe("div");
   });
 
-  test("SANITY_UI_COMPONENTS can be joined into a regex pattern", () => {
-    const pattern = SANITY_UI_COMPONENTS.join("|");
+  test("TRACKED_COMPONENTS can be joined into a regex pattern", () => {
+    const pattern = TRACKED_COMPONENTS.join("|");
     const regex = new RegExp(`<(${pattern})\\b`);
 
     expect(regex.test("<Card padding={2}>")).toBe(true);

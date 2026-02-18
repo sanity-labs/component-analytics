@@ -1,8 +1,8 @@
-# UI Component Analysis
+# Component Analytics
 
-Multi-codebase React component usage analysis for any UI component library. Uses [React Scanner](https://github.com/moroshko/react-scanner) and custom AST-based analyzers to produce actionable reports on component usage, HTML tag prevalence, customization patterns, prop surface area, and line ownership across configurable codebases.
+Measures React component usage for a UI component library. Uses [React Scanner](https://github.com/moroshko/react-scanner) and custom AST-based analyzers to produce actionable reports on component usage, HTML tag prevalence, customization patterns, prop surface area, and line ownership across configurable codebases.
 
-All settings — which codebases to scan, which UI libraries to measure, and which components to track — are controlled by a single configuration file: **`studio-analysis.config.js`**.
+All settings — which codebases to scan, which UI libraries to measure, and which components to track — are controlled by a single configuration file: **`component-analytics.config.js`**.
 
 ## Quick Start
 
@@ -11,7 +11,7 @@ npm install
 
 # 1. Edit the config file to match your project
 #    (codebases, UI libraries, components to track)
-vi studio-analysis.config.js
+vi component-analytics.config.js
 
 # 2. Run every analysis
 npm run analyze
@@ -26,14 +26,14 @@ npm run analyze:prop-surface     # Character footprint of UI props
 npm run analyze:line-ownership   # Line-of-code footprint of UI library
 ```
 
-The runner reads codebases and UI libraries from `studio-analysis.config.js` automatically — no hardcoded codebase names in any script.
+The runner reads codebases and UI libraries from `component-analytics.config.js` automatically — no hardcoded codebase names in any script.
 
 ## Configuration
 
 All project settings live in a single file at the project root:
 
 ```
-studio-analysis.config.js
+component-analytics.config.js
 ```
 
 Edit this file to control **what** gets analysed. Every analysis script reads from it automatically.
@@ -112,72 +112,89 @@ otherUIPatterns: [
 ],
 ```
 
-## Analyses
+## Reports
 
-### 1. Components
+All reports are written to the `reports/` directory. The structure is designed to be self-explanatory:
 
-All React components imported and rendered across every codebase.
+```
+reports/
+├── {codebase}/                     # Per-codebase React Scanner output
+│   ├── all-components/             #   Every React component (no import filter)
+│   │   ├── all-components.json     #     Raw React Scanner JSON
+│   │   ├── summary.csv             #     Component name, instance count, top prop
+│   │   ├── detailed.csv            #     Every component × prop × value
+│   │   └── stats.txt               #     Human-readable statistics
+│   └── wrappers/                   #   Only internal UI wrapper components
+│       ├── wrappers.json           #     Raw React Scanner JSON
+│       ├── summary.csv             #     Wrapper component summary
+│       ├── detailed.csv            #     Wrapper component × prop × value
+│       └── stats.txt               #     Human-readable statistics
+│
+├── components/                     # Tracked UI library — per-component detail
+│   ├── summary.txt                 #   Ranked table of all tracked components
+│   ├── summary.csv                 #   One row per component (instances, imports, props)
+│   ├── summary.json                #   Machine-readable summary
+│   ├── detected-defaults.txt       #   Auto-detected default prop values with evidence
+│   ├── detected-defaults.json      #   Machine-readable detected defaults
+│   └── detail/                     #   One JSON per component
+│       ├── Button.json             #     Imports, instances, props, values, references
+│       ├── Card.json
+│       └── …
+│
+├── sources/                        # JSX element source classification
+│   ├── report.txt                  #   Which JSX elements come from the tracked library
+│   ├── report.csv                  #     vs internal code vs native HTML vs other UI
+│   └── report.json
+│
+├── html-tags/                      # Native HTML/SVG tag usage
+│   ├── report.txt                  #   Every <div>, <span>, <svg>, etc. in JSX
+│   ├── report.csv                  #     categorized by purpose (layout, text, form, …)
+│   └── report.json
+│
+├── customizations/                 # Inline style= and styled() overrides
+│   ├── report.txt                  #   How often tracked components are customized
+│   ├── report.csv                  #     with inline styles or styled-components wrappers
+│   └── report.json
+│
+├── prop-surface/                   # UI prop character footprint
+│   ├── report.txt                  #   What percentage of UI-file characters are
+│   ├── report.csv                  #     tracked component props/attributes
+│   └── report.json
+│
+└── line-ownership/                 # UI library line ownership
+    ├── report.txt                  #   What percentage of UI-file lines belong to
+    ├── report.csv                  #     tracked library imports and JSX tags
+    └── report.json
+```
 
-| Report | Path |
-|--------|------|
-| Summary CSV | `reports/components/component-summary.csv` |
-| Detailed CSV | `reports/components/component-usage-detailed.csv` |
-| Statistics | `reports/components/component-analysis-stats.txt` |
+### What each report measures
 
-### 2. UI Component Sources
-
-Classifies every component import as **Sanity UI**, **other UI library**, or **internal**, then measures how many internal components also use Sanity UI.
-
-| Report | Path |
-|--------|------|
-| Text report | `reports/ui-component-sources/ui-component-sources-report.txt` |
-| CSV | `reports/ui-component-sources/ui-component-sources-report.csv` |
-| JSON | `reports/ui-component-sources/ui-component-sources-report.json` |
-
-### 5. HTML Tags
-
-Counts every raw HTML element (`<div>`, `<span>`, `<button>`, …) in JSX across all codebases, categorized by purpose (layout, text, form, list, table, media, link, embed).
-
-| Report | Path |
-|--------|------|
-| Text report | `reports/html-tags/html-tags-report.txt` |
-| CSV | `reports/html-tags/html-tags-report.csv` |
-| JSON | `reports/html-tags/html-tags-report.json` |
-
-### 6. Per-Component
-
-Individual report for every tracked UI library component with total imports, total JSX instances, prop usage frequencies, prop value distributions, and default-value detection across all codebases.
-
-| Report | Path |
-|--------|------|
-| Summary text | `reports/per-component/per-component-summary.txt` |
-| Summary CSV | `reports/per-component/per-component-summary.csv` |
-| Summary JSON | `reports/per-component/per-component-summary.json` |
-| Individual JSONs | `reports/per-component/components/<Component>.json` |
-
-### 7. Customizations
-
-Measures how often tracked UI components receive an inline `style` prop or are wrapped with `styled()`. Captures which CSS properties are applied in each case.
-
-| Report | Path |
-|--------|------|
-| Text report | `reports/sanity-ui-customizations/*-report.txt` |
-| CSV | `reports/sanity-ui-customizations/*-report.csv` |
-| JSON | `reports/sanity-ui-customizations/*-report.json` |
+| Report | Question it answers |
+|--------|-------------------|
+| **`{codebase}/all-components/`** | What React components exist in this codebase and how often is each used? |
+| **`{codebase}/wrappers/`** | Which internal wrapper components (e.g. ui-components/) are used and how? |
+| **`components/summary.*`** | Across all codebases, which tracked UI library components are used most? |
+| **`components/detail/<Name>.json`** | For one component: every prop, every value, every file+line reference. |
+| **`components/detected-defaults.*`** | Which prop values are redundant because they match the component's default? |
+| **`sources/report.*`** | What percentage of JSX elements come from the tracked library vs internal code vs raw HTML? |
+| **`html-tags/report.*`** | How much raw HTML (`<div>`, `<span>`, etc.) is used instead of tracked UI components? |
+| **`customizations/report.*`** | How often are tracked components overridden with `style={}` or `styled()`? |
+| **`prop-surface/report.*`** | What fraction of UI-file characters are tracked component props? |
+| **`line-ownership/report.*`** | What fraction of UI-file lines are tracked library imports + JSX tags? |
 
 ## Project Structure
 
 ```
 ui-component-analysis/
-├── studio-analysis.config.js           # ← Single configuration file
+├── component-analytics.config.js           # ← Single configuration file
 ├── codebases/                          # Source codebases (git clones)
 │   └── <your-codebases>/
-├── config/                             # React Scanner config (reads from studio-analysis.config.js)
+├── config/                             # React Scanner config (reads from component-analytics.config.js)
 │   └── react-scanner.config.js         #   Unified config; SCAN_TYPE env var selects the mode
 ├── scripts/                            # Analysis & reporting scripts
 │   ├── run.js                          # ← Unified runner (npm run analyze)
 │   ├── lib/                            # Shared library
-│   │   ├── constants.js                #   Derived from studio-analysis.config.js
+│   │   ├── constants.js                #   Derived from component-analytics.config.js
 │   │   ├── utils.js                    #   sortByCount, pct, incr, mergeCounters, compact, …
 │   │   └── files.js                    #   findFiles, readSafe, writeReports, ensureDir, …
 │   ├── sources/                        # Import source classification
@@ -208,28 +225,10 @@ ui-component-analysis/
 └── README.md
 ```
 
-## Testing
-
-```bash
-npm test                # Run all 570 tests
-npm run test:watch      # Watch mode
-npm run test:coverage   # Coverage report
-```
-
-Five test suites cover the shared library and custom analysis scripts:
-
-| Suite | Tests | Covers |
-|-------|-------|--------|
-| `lib.test.js` | 86 | Shared constants, utility functions, file helpers, cross-module integration |
-| `html-tags.test.js` | 78 | HTML tag extraction, allowlist filtering, aggregation, report generation |
-| `customizations.test.js` | 105 | Inline style & styled() extraction, property parsing, report generation |
-| `sources.test.js` | 133 | Import mapping, JSX instance counting, aggregation, HTML tag integration |
-| `per-component.test.js` | 134 | Import/instance extraction, prop parsing, value classification, aggregation, report generation |
-
 ## Adding a New Codebase
 
 1. Clone the repo into a directory (e.g. `codebases/my-app/`).
-2. Add an entry to the `codebases` array in `studio-analysis.config.js`:
+2. Add an entry to the `codebases` array in `component-analytics.config.js`:
    ```js
    { name: "my-app", path: "./codebases/my-app" }
    ```
@@ -237,7 +236,7 @@ Five test suites cover the shared library and custom analysis scripts:
 
 ## Tracking a Different UI Library
 
-1. Edit the `uiLibraries` array in `studio-analysis.config.js`.
+1. Edit the `uiLibraries` array in `component-analytics.config.js`.
 2. Set `importSources` to the package name(s) (e.g. `["@chakra-ui/react"]`).
 3. List the component names you want to track in `components`.
 4. Run `npm run analyze`.

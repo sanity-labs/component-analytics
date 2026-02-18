@@ -5,8 +5,8 @@ const path = require("path");
 const CODEBASES = ["sanity", "canvas", "huey"];
 
 function createSummary(codebase) {
-  const inputPath = `reports/${codebase}/components/component-usage-report.json`;
-  const outputPath = `reports/${codebase}/components/component-summary.csv`;
+  const inputPath = `reports/${codebase}/all-components/all-components.json`;
+  const outputPath = `reports/${codebase}/all-components/summary.csv`;
 
   // Check if input file exists
   if (!fs.existsSync(inputPath)) {

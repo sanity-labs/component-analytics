@@ -3,9 +3,9 @@
 /**
  * @module per-component/analyze-per-component
  *
- * Per-Component Sanity UI Analysis
+ * Per-Component tracked UI library Analysis
  *
- * Generates an individual report for every Sanity UI component found
+ * Generates an individual report for every tracked UI library component found
  * across all codebases.  Each report includes:
  *
  *   1. **Total imports** — how many files import the component
@@ -31,7 +31,8 @@ const path = require("path");
 
 const {
   CODEBASES,
-  SANITY_UI_COMPONENTS,
+  TRACKED_COMPONENTS,
+  UI_LIBRARY_NAMES,
   isTrackedUISource,
 } = require("../lib/constants");
 const {
@@ -130,35 +131,22 @@ function parseNamedImports(namedImportsStr) {
 }
 
 /**
- * Check whether an import source belongs to the tracked UI library.
- *
- * Delegates to {@link isTrackedUISource} from `lib/constants`, which
- * derives the matching rules from `studio-analysis.config.js`.
- *
- * @param {string} source - Import path string.
- * @returns {boolean}
- */
-function isSanityUISource(source) {
-  return isTrackedUISource(source);
-}
-
-/**
- * Build a map of `{ localName → originalName }` for every Sanity UI
+ * Build a map of `{ localName → originalName }` for every tracked UI library
  * component imported in a file.
  *
  * @param {string} content - File content.
- * @returns {Object<string, string>} local JSX name → original @sanity/ui export name.
+ * @returns {Object<string, string>} local JSX name → original tracked UI library export name.
  */
-function buildSanityUIImportMap(content) {
+function buildTrackedUIImportMap(content) {
   const imports = extractImports(content);
   /** @type {Object<string, string>} */
   const map = {};
 
   for (const imp of imports) {
-    if (!isSanityUISource(imp.source)) continue;
+    if (!isTrackedUISource(imp.source)) continue;
 
     for (const { original, local } of parseNamedImports(imp.namedImports)) {
-      if (SANITY_UI_COMPONENTS.includes(original)) {
+      if (TRACKED_COMPONENTS.includes(original)) {
         map[local] = original;
       }
     }
@@ -374,26 +362,26 @@ function normalizeValue(classified) {
 
 /**
  * @typedef {object} ComponentInstance
- * @property {string}                     component - Original @sanity/ui name.
+ * @property {string}                     component - Original tracked UI library name.
  * @property {Array<{ name: string, value: string }>} props - Parsed props.
  * @property {number}                     line      - 1-based line number in the source file.
  */
 
 /**
  * @typedef {object} FileResult
- * @property {Object<string, string>}  importMap  - local → original for Sanity UI imports.
- * @property {ComponentInstance[]}      instances  - Every Sanity UI JSX instance.
+ * @property {Object<string, string>}  importMap  - local → original for tracked UI library imports.
+ * @property {ComponentInstance[]}      instances  - Every tracked UI library JSX instance.
  */
 
 /**
- * Analyse one file and return every Sanity UI component instance with
+ * Analyse one file and return every tracked UI library component instance with
  * its parsed props and source line number.
  *
  * @param {string} content - File content.
  * @returns {FileResult}
  */
 function analyzeFileContent(content) {
-  const importMap = buildSanityUIImportMap(content);
+  const importMap = buildTrackedUIImportMap(content);
   const localNames = Object.keys(importMap);
 
   if (localNames.length === 0) {
@@ -403,7 +391,7 @@ function analyzeFileContent(content) {
   /** @type {ComponentInstance[]} */
   const instances = [];
 
-  // Build a regex that matches `<LocalName` for any imported Sanity UI component
+  // Build a regex that matches `<LocalName` for any imported tracked UI library component
   const pattern = localNames.map(escapeRegex).join("|");
   const tagRegex = new RegExp(`<(${pattern})\\b`, "g");
 
@@ -457,7 +445,7 @@ function escapeRegex(s) {
 
 /**
  * @typedef {object} ComponentReport
- * @property {string}                          component       - @sanity/ui export name.
+ * @property {string}                          component       - tracked UI library export name.
  * @property {number}                          totalImports    - Files that import this component.
  * @property {number}                          totalInstances  - JSX `<Component>` occurrences.
  * @property {Object<string, PropValueBucket>} props           - Per-prop breakdown.
@@ -470,7 +458,7 @@ function escapeRegex(s) {
 /**
  * Create an empty report skeleton for a component.
  *
- * @param {string} component - @sanity/ui export name.
+ * @param {string} component - tracked UI library export name.
  * @returns {ComponentReport}
  */
 function createEmptyReport(component) {
@@ -804,7 +792,9 @@ function generateSummaryText(reports) {
   const lines = [];
 
   lines.push("═".repeat(90));
-  lines.push("  PER-COMPONENT SANITY UI ANALYSIS — SUMMARY");
+  lines.push(
+    `  PER-COMPONENT ${UI_LIBRARY_NAMES.toUpperCase()} ANALYSIS — SUMMARY`,
+  );
   lines.push("═".repeat(90));
   lines.push("");
 
@@ -996,7 +986,7 @@ async function analyzeCodebase(codebase, reports) {
  */
 async function main() {
   console.log("═".repeat(60));
-  console.log("  PER-COMPONENT SANITY UI ANALYSIS");
+  console.log(`  PER-COMPONENT ${UI_LIBRARY_NAMES.toUpperCase()} ANALYSIS`);
   console.log("═".repeat(60));
 
   /** @type {Object<string, ComponentReport>} */
@@ -1004,7 +994,7 @@ async function main() {
 
   // Seed reports for all known components so we get entries even for
   // components that are never used.
-  for (const comp of SANITY_UI_COMPONENTS) {
+  for (const comp of TRACKED_COMPONENTS) {
     reports[comp] = createEmptyReport(comp);
   }
 
@@ -1019,11 +1009,11 @@ async function main() {
   applyAutoDetectedDefaults(reports);
 
   // Write reports
-  const outDir = reportDir("per-component");
+  const outDir = reportDir("components");
   ensureDir(outDir);
 
   // Individual component JSON files
-  const componentsDir = path.join(outDir, "components");
+  const componentsDir = path.join(outDir, "detail");
   ensureDir(componentsDir);
 
   let writtenCount = 0;
@@ -1036,16 +1026,13 @@ async function main() {
 
   // Summary files
   const summaryCSV = generateSummaryCSV(reports);
-  fs.writeFileSync(path.join(outDir, "per-component-summary.csv"), summaryCSV);
+  fs.writeFileSync(path.join(outDir, "summary.csv"), summaryCSV);
 
   const summaryJSON = generateSummaryJSON(reports);
-  fs.writeFileSync(
-    path.join(outDir, "per-component-summary.json"),
-    summaryJSON,
-  );
+  fs.writeFileSync(path.join(outDir, "summary.json"), summaryJSON);
 
   const summaryText = generateSummaryText(reports);
-  fs.writeFileSync(path.join(outDir, "per-component-summary.txt"), summaryText);
+  fs.writeFileSync(path.join(outDir, "summary.txt"), summaryText);
 
   console.log(`\n✅ ${writtenCount} component reports written`);
   console.log("✅ Summary CSV written");
@@ -1093,8 +1080,8 @@ module.exports = {
   // Import extraction
   extractImports,
   parseNamedImports,
-  isSanityUISource,
-  buildSanityUIImportMap,
+  isTrackedUISource,
+  buildTrackedUIImportMap,
 
   // JSX prop extraction
   findTagEnd,

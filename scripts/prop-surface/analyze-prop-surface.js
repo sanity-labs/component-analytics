@@ -5,11 +5,11 @@
  *
  * Prop Surface Area Analysis
  *
- * Measures the character footprint of Sanity UI component props relative
+ * Measures the character footprint of tracked UI library component props relative
  * to the total size of each codebase.  For every TSX/JSX file:
  *
  *   1. Count the total characters in the file.
- *   2. Find every Sanity UI component JSX opening tag.
+ *   2. Find every tracked UI library component JSX opening tag.
  *   3. Measure the character length of the props portion of each tag
  *      (everything between the component name and the closing `>` / `/>`,
  *      excluding the angle brackets and component name themselves).
@@ -29,8 +29,8 @@
 
 const {
   CODEBASES,
-  SANITY_UI_COMPONENTS,
-  UI_LIBRARY_NAME,
+  TRACKED_COMPONENTS,
+  UI_LIBRARY_NAMES,
   isTrackedUISource,
 } = require("../lib/constants");
 const { sortByCount, pct, incr } = require("../lib/utils");
@@ -110,32 +110,19 @@ function parseNamedImports(namedImportsStr) {
 }
 
 /**
- * Check whether an import source belongs to the tracked UI library.
- *
- * Delegates to {@link isTrackedUISource} from `lib/constants`, which
- * derives the matching rules from `studio-analysis.config.js`.
- *
- * @param {string} source
- * @returns {boolean}
- */
-function isSanityUISource(source) {
-  return isTrackedUISource(source);
-}
-
-/**
- * Build `{ localName → originalName }` for Sanity UI component imports.
+ * Build `{ localName → originalName }` for tracked UI library component imports.
  *
  * @param {string} content
  * @returns {Object<string, string>}
  */
-function buildSanityUIImportMap(content) {
+function buildTrackedUIImportMap(content) {
   const imports = extractImports(content);
   /** @type {Object<string, string>} */
   const map = {};
   for (const imp of imports) {
-    if (!isSanityUISource(imp.source)) continue;
+    if (!isTrackedUISource(imp.source)) continue;
     for (const { original, local } of parseNamedImports(imp.namedImports)) {
-      if (SANITY_UI_COMPONENTS.includes(original)) {
+      if (TRACKED_COMPONENTS.includes(original)) {
         map[local] = original;
       }
     }
@@ -180,14 +167,14 @@ function escapeRegex(s) {
 
 /**
  * @typedef {object} PropSpan
- * @property {string} component  - Original @sanity/ui component name.
+ * @property {string} component  - Original tracked UI library component name.
  * @property {number} startIdx   - Character index where the props body starts (right after the component name).
  * @property {number} endIdx     - Character index of the closing `>` (exclusive).
  * @property {number} charCount  - Number of characters in the props body (endIdx - startIdx).
  */
 
 /**
- * Find every Sanity UI component opening tag in a file and measure
+ * Find every tracked UI library component opening tag in a file and measure
  * the character span of its props body.
  *
  * The props body is defined as the substring between the end of the
@@ -201,7 +188,7 @@ function escapeRegex(s) {
  * the tag.  The opening `<ComponentName` and the final `>` are excluded.
  *
  * @param {string} content          - Full file content.
- * @param {Object<string, string>}  importMap - local → original Sanity UI map.
+ * @param {Object<string, string>}  importMap - local → original tracked UI library map.
  * @returns {PropSpan[]}
  */
 function measurePropSpans(content, importMap) {
@@ -243,8 +230,8 @@ function measurePropSpans(content, importMap) {
 /**
  * @typedef {object} FileMetrics
  * @property {number}  totalChars          - Total characters in the file.
- * @property {number}  sanityUIPropChars   - Characters occupied by Sanity UI props.
- * @property {number}  sanityUITagCount    - Number of Sanity UI opening tags found.
+ * @property {number}  trackedUIPropChars   - Characters occupied by tracked UI library props.
+ * @property {number}  trackedUITagCount    - Number of tracked UI library opening tags found.
  * @property {boolean} rendersUI           - Whether this file contains any JSX (React or HTML).
  * @property {Object<string, number>} charsByComponent - Prop chars broken down by component.
  */
@@ -257,22 +244,22 @@ function measurePropSpans(content, importMap) {
  */
 function analyzeFileContent(content) {
   const totalChars = content.length;
-  const importMap = buildSanityUIImportMap(content);
+  const importMap = buildTrackedUIImportMap(content);
   const spans = measurePropSpans(content, importMap);
 
-  let sanityUIPropChars = 0;
+  let trackedUIPropChars = 0;
   /** @type {Object<string, number>} */
   const charsByComponent = {};
 
   for (const span of spans) {
-    sanityUIPropChars += span.charCount;
+    trackedUIPropChars += span.charCount;
     incr(charsByComponent, span.component, span.charCount);
   }
 
   return {
     totalChars,
-    sanityUIPropChars,
-    sanityUITagCount: spans.length,
+    trackedUIPropChars,
+    trackedUITagCount: spans.length,
     rendersUI: hasJSX(content),
     charsByComponent,
   };
@@ -286,11 +273,11 @@ function analyzeFileContent(content) {
  * @typedef {object} CodebaseMetrics
  * @property {number} fileCount           - All files analysed.
  * @property {number} uiFileCount         - Files that render UI (contain JSX).
- * @property {number} filesWithSanityUI   - Files containing ≥ 1 Sanity UI tag.
+ * @property {number} filesWithTrackedUI   - Files containing ≥ 1 tracked UI library tag.
  * @property {number} totalChars          - Characters across ALL files.
  * @property {number} uiFileChars         - Characters across UI-rendering files only.
- * @property {number} sanityUIPropChars   - Total Sanity UI prop characters.
- * @property {number} sanityUITagCount    - Total Sanity UI opening tags.
+ * @property {number} trackedUIPropChars   - Total tracked UI library prop characters.
+ * @property {number} trackedUITagCount    - Total tracked UI library opening tags.
  * @property {Object<string, number>} charsByComponent - Prop chars per component.
  */
 
@@ -305,26 +292,26 @@ function aggregateResults(fileResults) {
   const agg = {
     fileCount: fileResults.length,
     uiFileCount: 0,
-    filesWithSanityUI: 0,
+    filesWithTrackedUI: 0,
     totalChars: 0,
     uiFileChars: 0,
-    sanityUIPropChars: 0,
-    sanityUITagCount: 0,
+    trackedUIPropChars: 0,
+    trackedUITagCount: 0,
     charsByComponent: {},
   };
 
   for (const result of fileResults) {
     agg.totalChars += result.totalChars;
-    agg.sanityUIPropChars += result.sanityUIPropChars;
-    agg.sanityUITagCount += result.sanityUITagCount;
+    agg.trackedUIPropChars += result.trackedUIPropChars;
+    agg.trackedUITagCount += result.trackedUITagCount;
 
     if (result.rendersUI) {
       agg.uiFileCount++;
       agg.uiFileChars += result.totalChars;
     }
 
-    if (result.sanityUITagCount > 0) {
-      agg.filesWithSanityUI++;
+    if (result.trackedUITagCount > 0) {
+      agg.filesWithTrackedUI++;
     }
 
     for (const [comp, chars] of Object.entries(result.charsByComponent)) {
@@ -361,11 +348,11 @@ function generateTextReport(results) {
   const lines = [];
 
   lines.push("═".repeat(90));
-  lines.push(`  ${UI_LIBRARY_NAME.toUpperCase()} PROP SURFACE AREA ANALYSIS`);
+  lines.push(`  ${UI_LIBRARY_NAMES.toUpperCase()} PROP SURFACE AREA ANALYSIS`);
   lines.push("═".repeat(90));
   lines.push("");
   lines.push(
-    `  Measures the character footprint of ${UI_LIBRARY_NAME} component props/attributes`,
+    `  Measures the character footprint of ${UI_LIBRARY_NAMES} component props/attributes`,
   );
   lines.push(
     "  relative to files that render UI (contain JSX).  Pure logic files",
@@ -379,11 +366,11 @@ function generateTextReport(results) {
   const grand = {
     fileCount: 0,
     uiFileCount: 0,
-    filesWithSanityUI: 0,
+    filesWithTrackedUI: 0,
     totalChars: 0,
     uiFileChars: 0,
-    sanityUIPropChars: 0,
-    sanityUITagCount: 0,
+    trackedUIPropChars: 0,
+    trackedUITagCount: 0,
     charsByComponent: {},
   };
 
@@ -392,16 +379,16 @@ function generateTextReport(results) {
 
     grand.fileCount += data.fileCount;
     grand.uiFileCount += data.uiFileCount;
-    grand.filesWithSanityUI += data.filesWithSanityUI;
+    grand.filesWithTrackedUI += data.filesWithTrackedUI;
     grand.totalChars += data.totalChars;
     grand.uiFileChars += data.uiFileChars;
-    grand.sanityUIPropChars += data.sanityUIPropChars;
-    grand.sanityUITagCount += data.sanityUITagCount;
+    grand.trackedUIPropChars += data.trackedUIPropChars;
+    grand.trackedUITagCount += data.trackedUITagCount;
     for (const [comp, chars] of Object.entries(data.charsByComponent)) {
       incr(grand.charsByComponent, comp, chars);
     }
 
-    const p = pct(data.sanityUIPropChars, data.uiFileChars);
+    const p = pct(data.trackedUIPropChars, data.uiFileChars);
 
     lines.push("─".repeat(90));
     lines.push(`  CODEBASE: ${codebase.toUpperCase()}`);
@@ -414,10 +401,10 @@ function generateTextReport(results) {
       `  UI files (with JSX):         ${data.uiFileCount.toLocaleString()}`,
     );
     lines.push(
-      `  Files with ${UI_LIBRARY_NAME}:${" ".repeat(Math.max(1, 23 - UI_LIBRARY_NAME.length))}${data.filesWithSanityUI.toLocaleString()}`,
+      `  Files with ${UI_LIBRARY_NAMES}:${" ".repeat(Math.max(1, 23 - UI_LIBRARY_NAMES.length))}${data.filesWithTrackedUI.toLocaleString()}`,
     );
     lines.push(
-      `  ${UI_LIBRARY_NAME} tags found:${" ".repeat(Math.max(1, 23 - UI_LIBRARY_NAME.length))}${data.sanityUITagCount.toLocaleString()}`,
+      `  ${UI_LIBRARY_NAMES} tags found:${" ".repeat(Math.max(1, 23 - UI_LIBRARY_NAMES.length))}${data.trackedUITagCount.toLocaleString()}`,
     );
     lines.push("");
     lines.push(
@@ -427,14 +414,14 @@ function generateTextReport(results) {
       `  UI file chars:               ${data.uiFileChars.toLocaleString()}  (${formatSize(data.uiFileChars)})`,
     );
     lines.push(
-      `  ${UI_LIBRARY_NAME} prop chars:${" ".repeat(Math.max(1, 23 - UI_LIBRARY_NAME.length))}${data.sanityUIPropChars.toLocaleString()}  (${formatSize(data.sanityUIPropChars)})`,
+      `  ${UI_LIBRARY_NAMES} prop chars:${" ".repeat(Math.max(1, 23 - UI_LIBRARY_NAMES.length))}${data.trackedUIPropChars.toLocaleString()}  (${formatSize(data.trackedUIPropChars)})`,
     );
     lines.push(`  Prop surface area (UI):      ${p}%`);
     lines.push("");
 
-    if (data.sanityUITagCount > 0) {
+    if (data.trackedUITagCount > 0) {
       const avgCharsPerTag = (
-        data.sanityUIPropChars / data.sanityUITagCount
+        data.trackedUIPropChars / data.trackedUITagCount
       ).toFixed(1);
       lines.push(`  Avg prop chars per tag:      ${avgCharsPerTag}`);
       lines.push("");
@@ -464,7 +451,7 @@ function generateTextReport(results) {
             comp.padEnd(28) +
             chars.toLocaleString().padStart(12) +
             "  " +
-            (pct(chars, data.sanityUIPropChars) + "%").padStart(10) +
+            (pct(chars, data.trackedUIPropChars) + "%").padStart(10) +
             "  " +
             (pct(chars, data.uiFileChars) + "%").padStart(13),
         );
@@ -486,10 +473,10 @@ function generateTextReport(results) {
     `  UI files (with JSX):         ${grand.uiFileCount.toLocaleString()}`,
   );
   lines.push(
-    `  Files with ${UI_LIBRARY_NAME}:${" ".repeat(Math.max(1, 23 - UI_LIBRARY_NAME.length))}${grand.filesWithSanityUI.toLocaleString()}`,
+    `  Files with ${UI_LIBRARY_NAMES}:${" ".repeat(Math.max(1, 23 - UI_LIBRARY_NAMES.length))}${grand.filesWithTrackedUI.toLocaleString()}`,
   );
   lines.push(
-    `  ${UI_LIBRARY_NAME} tags:${" ".repeat(Math.max(1, 30 - UI_LIBRARY_NAME.length))}${grand.sanityUITagCount.toLocaleString()}`,
+    `  ${UI_LIBRARY_NAMES} tags:${" ".repeat(Math.max(1, 30 - UI_LIBRARY_NAMES.length))}${grand.trackedUITagCount.toLocaleString()}`,
   );
   lines.push("");
   lines.push(
@@ -499,17 +486,17 @@ function generateTextReport(results) {
     `  UI file chars:               ${grand.uiFileChars.toLocaleString()}  (${formatSize(grand.uiFileChars)})`,
   );
   lines.push(
-    `  ${UI_LIBRARY_NAME} prop chars:${" ".repeat(Math.max(1, 23 - UI_LIBRARY_NAME.length))}${grand.sanityUIPropChars.toLocaleString()}  (${formatSize(grand.sanityUIPropChars)})`,
+    `  ${UI_LIBRARY_NAMES} prop chars:${" ".repeat(Math.max(1, 23 - UI_LIBRARY_NAMES.length))}${grand.trackedUIPropChars.toLocaleString()}  (${formatSize(grand.trackedUIPropChars)})`,
   );
   lines.push(
-    `  Prop surface area (UI):      ${pct(grand.sanityUIPropChars, grand.uiFileChars)}%`,
+    `  Prop surface area (UI):      ${pct(grand.trackedUIPropChars, grand.uiFileChars)}%`,
   );
   lines.push("");
 
-  if (grand.sanityUITagCount > 0) {
-    const avgGrand = (grand.sanityUIPropChars / grand.sanityUITagCount).toFixed(
-      1,
-    );
+  if (grand.trackedUITagCount > 0) {
+    const avgGrand = (
+      grand.trackedUIPropChars / grand.trackedUITagCount
+    ).toFixed(1);
     lines.push(`  Avg prop chars per tag:      ${avgGrand}`);
     lines.push("");
   }
@@ -536,8 +523,8 @@ function generateTextReport(results) {
   for (const [codebase, data] of Object.entries(results)) {
     if (!data) continue;
     const avg =
-      data.sanityUITagCount > 0
-        ? (data.sanityUIPropChars / data.sanityUITagCount).toFixed(1)
+      data.trackedUITagCount > 0
+        ? (data.trackedUIPropChars / data.trackedUITagCount).toFixed(1)
         : "0.0";
     lines.push(
       "  " +
@@ -546,11 +533,11 @@ function generateTextReport(results) {
         "  " +
         data.uiFileChars.toLocaleString().padStart(14) +
         "  " +
-        data.sanityUIPropChars.toLocaleString().padStart(12) +
+        data.trackedUIPropChars.toLocaleString().padStart(12) +
         "  " +
-        (pct(data.sanityUIPropChars, data.uiFileChars) + "%").padStart(10) +
+        (pct(data.trackedUIPropChars, data.uiFileChars) + "%").padStart(10) +
         "  " +
-        data.sanityUITagCount.toLocaleString().padStart(8) +
+        data.trackedUITagCount.toLocaleString().padStart(8) +
         "  " +
         avg.padStart(8),
     );
@@ -559,8 +546,8 @@ function generateTextReport(results) {
   lines.push("  " + "-".repeat(82));
 
   const grandAvg =
-    grand.sanityUITagCount > 0
-      ? (grand.sanityUIPropChars / grand.sanityUITagCount).toFixed(1)
+    grand.trackedUITagCount > 0
+      ? (grand.trackedUIPropChars / grand.trackedUITagCount).toFixed(1)
       : "0.0";
 
   lines.push(
@@ -570,11 +557,11 @@ function generateTextReport(results) {
       "  " +
       grand.uiFileChars.toLocaleString().padStart(14) +
       "  " +
-      grand.sanityUIPropChars.toLocaleString().padStart(12) +
+      grand.trackedUIPropChars.toLocaleString().padStart(12) +
       "  " +
-      (pct(grand.sanityUIPropChars, grand.uiFileChars) + "%").padStart(10) +
+      (pct(grand.trackedUIPropChars, grand.uiFileChars) + "%").padStart(10) +
       "  " +
-      grand.sanityUITagCount.toLocaleString().padStart(8) +
+      grand.trackedUITagCount.toLocaleString().padStart(8) +
       "  " +
       grandAvg.padStart(8),
   );
@@ -605,7 +592,7 @@ function generateTextReport(results) {
           comp.padEnd(28) +
           chars.toLocaleString().padStart(12) +
           "  " +
-          (pct(chars, grand.sanityUIPropChars) + "%").padStart(14) +
+          (pct(chars, grand.trackedUIPropChars) + "%").padStart(14) +
           "  " +
           (pct(chars, grand.uiFileChars) + "%").padStart(13),
       );
@@ -638,7 +625,7 @@ function generateCSV(results) {
 
   // Section 1: Codebase summary
   rows.push(
-    `Codebase,Total Files,UI Files,Files with ${UI_LIBRARY_NAME},Total Characters,UI File Characters,${UI_LIBRARY_NAME} Prop Characters,Prop Surface % (UI),${UI_LIBRARY_NAME} Tags,Avg Chars per Tag`,
+    `Codebase,Total Files,UI Files,Files with ${UI_LIBRARY_NAMES},Total Characters,UI File Characters,${UI_LIBRARY_NAMES} Prop Characters,Prop Surface % (UI),${UI_LIBRARY_NAMES} Tags,Avg Chars per Tag`,
   );
 
   let grandTotalChars = 0;
@@ -651,13 +638,13 @@ function generateCSV(results) {
     if (!data) continue;
     grandTotalChars += data.totalChars;
     grandUIChars += data.uiFileChars;
-    grandPropChars += data.sanityUIPropChars;
-    grandTags += data.sanityUITagCount;
+    grandPropChars += data.trackedUIPropChars;
+    grandTags += data.trackedUITagCount;
     grandUIFiles += data.uiFileCount;
 
     const avg =
-      data.sanityUITagCount > 0
-        ? (data.sanityUIPropChars / data.sanityUITagCount).toFixed(1)
+      data.trackedUITagCount > 0
+        ? (data.trackedUIPropChars / data.trackedUITagCount).toFixed(1)
         : "0.0";
 
     rows.push(
@@ -665,12 +652,12 @@ function generateCSV(results) {
         codebase,
         data.fileCount,
         data.uiFileCount,
-        data.filesWithSanityUI,
+        data.filesWithTrackedUI,
         data.totalChars,
         data.uiFileChars,
-        data.sanityUIPropChars,
-        pct(data.sanityUIPropChars, data.uiFileChars) + "%",
-        data.sanityUITagCount,
+        data.trackedUIPropChars,
+        pct(data.trackedUIPropChars, data.uiFileChars) + "%",
+        data.trackedUITagCount,
         avg,
       ].join(","),
     );
@@ -711,7 +698,7 @@ function generateCSV(results) {
           `"${comp}"`,
           codebase,
           chars,
-          pct(chars, data.sanityUIPropChars) + "%",
+          pct(chars, data.trackedUIPropChars) + "%",
           pct(chars, data.uiFileChars) + "%",
         ].join(","),
       );
@@ -741,7 +728,7 @@ function generateJSON(results) {
   let grandTags = 0;
   let grandFiles = 0;
   let grandUIFiles = 0;
-  let grandFilesWithSanityUI = 0;
+  let grandFilesWithTrackedUI = 0;
   /** @type {Object<string, number>} */
   const grandCharsByComponent = {};
 
@@ -750,11 +737,11 @@ function generateJSON(results) {
 
     grandTotalChars += data.totalChars;
     grandUIChars += data.uiFileChars;
-    grandPropChars += data.sanityUIPropChars;
-    grandTags += data.sanityUITagCount;
+    grandPropChars += data.trackedUIPropChars;
+    grandTags += data.trackedUITagCount;
     grandFiles += data.fileCount;
     grandUIFiles += data.uiFileCount;
-    grandFilesWithSanityUI += data.filesWithSanityUI;
+    grandFilesWithTrackedUI += data.filesWithTrackedUI;
 
     for (const [comp, chars] of Object.entries(data.charsByComponent)) {
       incr(grandCharsByComponent, comp, chars);
@@ -765,24 +752,24 @@ function generateJSON(results) {
     codebaseSummaries[codebase] = {
       fileCount: data.fileCount,
       uiFileCount: data.uiFileCount,
-      filesWithSanityUI: data.filesWithSanityUI,
+      filesWithTrackedUI: data.filesWithTrackedUI,
       totalCharacters: data.totalChars,
       uiFileCharacters: data.uiFileChars,
-      sanityUIPropCharacters: data.sanityUIPropChars,
+      trackedUIPropCharacters: data.trackedUIPropChars,
       propSurfacePercent: parseFloat(
-        pct(data.sanityUIPropChars, data.uiFileChars),
+        pct(data.trackedUIPropChars, data.uiFileChars),
       ),
-      sanityUITagCount: data.sanityUITagCount,
+      trackedUITagCount: data.trackedUITagCount,
       avgPropCharsPerTag:
-        data.sanityUITagCount > 0
+        data.trackedUITagCount > 0
           ? parseFloat(
-              (data.sanityUIPropChars / data.sanityUITagCount).toFixed(1),
+              (data.trackedUIPropChars / data.trackedUITagCount).toFixed(1),
             )
           : 0,
       topComponents: sorted.slice(0, 20).map(([comp, chars]) => ({
         component: comp,
         propChars: chars,
-        percentOfProps: parseFloat(pct(chars, data.sanityUIPropChars)),
+        percentOfProps: parseFloat(pct(chars, data.trackedUIPropChars)),
         percentOfUICode: parseFloat(pct(chars, data.uiFileChars)),
       })),
     };
@@ -796,12 +783,12 @@ function generateJSON(results) {
     aggregate: {
       totalFiles: grandFiles,
       uiFileCount: grandUIFiles,
-      filesWithSanityUI: grandFilesWithSanityUI,
+      filesWithTrackedUI: grandFilesWithTrackedUI,
       totalCharacters: grandTotalChars,
       uiFileCharacters: grandUIChars,
-      sanityUIPropCharacters: grandPropChars,
+      trackedUIPropCharacters: grandPropChars,
       propSurfacePercent: parseFloat(pct(grandPropChars, grandUIChars)),
-      sanityUITagCount: grandTags,
+      trackedUITagCount: grandTags,
       avgPropCharsPerTag:
         grandTags > 0 ? parseFloat((grandPropChars / grandTags).toFixed(1)) : 0,
       topComponents: grandSorted.slice(0, 20).map(([comp, chars]) => ({
@@ -848,9 +835,9 @@ async function analyzeCodebase(codebase) {
 
   const agg = aggregateResults(fileResults);
 
-  const p = pct(agg.sanityUIPropChars, agg.uiFileChars);
+  const p = pct(agg.trackedUIPropChars, agg.uiFileChars);
   console.log(
-    `   ${agg.uiFileCount} UI files (${formatSize(agg.uiFileChars)}), ${formatSize(agg.sanityUIPropChars)} ${UI_LIBRARY_NAME} props (${p}%)`,
+    `   ${agg.uiFileCount} UI files (${formatSize(agg.uiFileChars)}), ${formatSize(agg.trackedUIPropChars)} ${UI_LIBRARY_NAMES} props (${p}%)`,
   );
 
   return agg;
@@ -867,7 +854,7 @@ async function analyzeCodebase(codebase) {
  */
 async function main() {
   console.log("═".repeat(60));
-  console.log(`  ${UI_LIBRARY_NAME.toUpperCase()} PROP SURFACE AREA ANALYSIS`);
+  console.log(`  ${UI_LIBRARY_NAMES.toUpperCase()} PROP SURFACE AREA ANALYSIS`);
   console.log("═".repeat(60));
 
   /** @type {Object<string, CodebaseMetrics | null>} */
@@ -877,7 +864,7 @@ async function main() {
     results[codebase] = await analyzeCodebase(codebase);
   }
 
-  writeReports("prop-surface", "prop-surface", {
+  writeReports("prop-surface", "report", {
     text: generateTextReport(results),
     csv: generateCSV(results),
     json: generateJSON(results),
@@ -898,9 +885,9 @@ async function main() {
   for (const [codebase, data] of Object.entries(results)) {
     if (!data) continue;
     grandTotal += data.uiFileChars;
-    grandProps += data.sanityUIPropChars;
+    grandProps += data.trackedUIPropChars;
     console.log(
-      `  ${codebase.padEnd(12)}: ${formatSize(data.uiFileChars).padStart(10)} UI code, ${formatSize(data.sanityUIPropChars).padStart(10)} props → ${pct(data.sanityUIPropChars, data.uiFileChars)}%`,
+      `  ${codebase.padEnd(12)}: ${formatSize(data.uiFileChars).padStart(10)} UI code, ${formatSize(data.trackedUIPropChars).padStart(10)} props → ${pct(data.trackedUIPropChars, data.uiFileChars)}%`,
     );
   }
 
@@ -924,8 +911,8 @@ module.exports = {
   // Import parsing
   extractImports,
   parseNamedImports,
-  isSanityUISource,
-  buildSanityUIImportMap,
+  isTrackedUISource,
+  buildTrackedUIImportMap,
 
   // Tag detection
   findTagEnd,
