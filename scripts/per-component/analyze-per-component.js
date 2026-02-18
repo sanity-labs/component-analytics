@@ -32,8 +32,13 @@ const path = require("path");
 const {
   CODEBASES,
   SANITY_UI_COMPONENTS,
-  PROP_DEFAULTS,
+  isTrackedUISource,
 } = require("../lib/constants");
+const {
+  detectPropDefault,
+  KNOWN_DEFAULT_VALUES,
+  KNOWN_AS_DEFAULTS,
+} = require("./detect-prop-defaults");
 const { sortByCount, incr, pct } = require("../lib/utils");
 const {
   codebaseExists,
@@ -125,13 +130,16 @@ function parseNamedImports(namedImportsStr) {
 }
 
 /**
- * Check whether an import source is `@sanity/ui` (not `/theme`).
+ * Check whether an import source belongs to the tracked UI library.
+ *
+ * Delegates to {@link isTrackedUISource} from `lib/constants`, which
+ * derives the matching rules from `studio-analysis.config.js`.
  *
  * @param {string} source - Import path string.
  * @returns {boolean}
  */
 function isSanityUISource(source) {
-  return /@sanity\/ui(?!\/theme)/.test(source);
+  return isTrackedUISource(source);
 }
 
 /**
@@ -481,10 +489,9 @@ function createEmptyReport(component) {
 /**
  * Record a single prop occurrence into a component report.
  *
- * Also checks whether the value matches the known default for this
- * component + prop combination (from {@link PROP_DEFAULTS}).  If so,
- * the `defaultUsages` counter on the prop bucket and the report-level
- * `totalDefaultUsages` counter are both incremented.
+ * Records a prop usage.  Default-value detection is NOT done here —
+ * it happens in a separate pass after all files have been aggregated,
+ * via {@link applyAutoDetectedDefaults}.
  *
  * @param {ComponentReport} report
  * @param {string}          propName
@@ -492,15 +499,11 @@ function createEmptyReport(component) {
  */
 function recordProp(report, propName, rawValue) {
   if (!report.props[propName]) {
-    const knownDefault =
-      (PROP_DEFAULTS[report.component] &&
-        PROP_DEFAULTS[report.component][propName]) ||
-      null;
     report.props[propName] = {
       values: {},
       totalUsages: 0,
       defaultUsages: 0,
-      defaultValue: knownDefault,
+      defaultValue: null,
     };
   }
   report.props[propName].totalUsages++;
@@ -508,12 +511,49 @@ function recordProp(report, propName, rawValue) {
   const classified = classifyValue(rawValue);
   const normalized = normalizeValue(classified);
   incr(report.props[propName].values, normalized);
+}
 
-  // Check if this value matches the known default
-  const bucket = report.props[propName];
-  if (bucket.defaultValue !== null && normalized === bucket.defaultValue) {
-    bucket.defaultUsages++;
-    report.totalDefaultUsages++;
+/**
+ * Run automatic default-value detection across every prop in every
+ * component report, then count how many times each detected default
+ * was explicitly set.
+ *
+ * This is called once after ALL files have been processed, so the
+ * detection heuristics have complete usage data to work with.
+ *
+ * @param {Object<string, ComponentReport>} reports - Keyed by component name.
+ */
+function applyAutoDetectedDefaults(reports) {
+  for (const [component, report] of Object.entries(reports)) {
+    for (const [propName, bucket] of Object.entries(report.props)) {
+      // Skip event handlers, keys, refs, data-/aria- attributes
+      if (
+        propName.startsWith("on") &&
+        propName.length > 2 &&
+        /[A-Z]/.test(propName[2])
+      )
+        continue;
+      if (propName === "key" || propName === "ref" || propName === "children")
+        continue;
+      if (propName.startsWith("data-") || propName.startsWith("aria-"))
+        continue;
+
+      const detected = detectPropDefault(
+        component,
+        propName,
+        bucket,
+        report.totalInstances,
+      );
+
+      if (
+        detected &&
+        (detected.confidence === "high" || detected.confidence === "medium")
+      ) {
+        bucket.defaultValue = detected.value;
+        bucket.defaultUsages = detected.count;
+        report.totalDefaultUsages += detected.count;
+      }
+    }
   }
 }
 
@@ -973,6 +1013,11 @@ async function main() {
     totalFiles += await analyzeCodebase(codebase, reports);
   }
 
+  // Run automatic default-value detection now that all usage data is
+  // collected.  This replaces the old approach of reading defaults
+  // from the config file.
+  applyAutoDetectedDefaults(reports);
+
   // Write reports
   const outDir = reportDir("per-component");
   ensureDir(outDir);
@@ -1064,6 +1109,9 @@ module.exports = {
   createEmptyReport,
   recordProp,
   mergeFileResult,
+
+  // Default detection (post-aggregation)
+  applyAutoDetectedDefaults,
 
   // Report generation
   buildComponentJson,

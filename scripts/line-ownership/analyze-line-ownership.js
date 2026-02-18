@@ -29,7 +29,12 @@
  *   npm run analyze:line-ownership
  */
 
-const { CODEBASES, SANITY_UI_COMPONENTS } = require("../lib/constants");
+const {
+  CODEBASES,
+  SANITY_UI_COMPONENTS,
+  UI_LIBRARY_NAME,
+  isTrackedUISource,
+} = require("../lib/constants");
 const { sortByCount, pct, incr } = require("../lib/utils");
 const {
   codebaseExists,
@@ -84,13 +89,16 @@ function extractImports(content) {
 }
 
 /**
- * Check whether an import source is `@sanity/ui` (not `/theme`).
+ * Check whether an import source belongs to the tracked UI library.
+ *
+ * Delegates to {@link isTrackedUISource} from `lib/constants`, which
+ * derives the matching rules from `studio-analysis.config.js`.
  *
  * @param {string} source
  * @returns {boolean}
  */
 function isSanityUISource(source) {
-  return /@sanity\/ui(?!\/theme)/.test(source);
+  return isTrackedUISource(source);
 }
 
 /**
@@ -464,21 +472,21 @@ function generateTextReport(results) {
   const lines = [];
 
   lines.push("═".repeat(90));
-  lines.push("  SANITY UI LINE OWNERSHIP ANALYSIS");
+  lines.push(`  ${UI_LIBRARY_NAME.toUpperCase()} LINE OWNERSHIP ANALYSIS`);
   lines.push("═".repeat(90));
   lines.push("");
   lines.push(
-    "  Measures the line-of-code footprint of Sanity UI in each codebase.",
+    `  Measures the line-of-code footprint of ${UI_LIBRARY_NAME} in each codebase.`,
   );
   lines.push(
     "  Only files that render UI (contain JSX) are included in the denominator.",
   );
   lines.push("  Pure logic files (hooks, types, utilities) are excluded.");
   lines.push(
-    "  A line is counted as 'Sanity UI' if it is part of a @sanity/ui import",
+    `  A line is counted as '${UI_LIBRARY_NAME}' if it is part of a tracked library import`,
   );
   lines.push(
-    "  statement or falls within a Sanity UI JSX opening tag (including",
+    `  statement or falls within a ${UI_LIBRARY_NAME} JSX opening tag (including`,
   );
   lines.push(
     "  multi-line prop spans).  Each physical line is counted at most once.",
@@ -530,10 +538,10 @@ function generateTextReport(results) {
       `  UI files (with JSX):         ${data.uiFileCount.toLocaleString()}`,
     );
     lines.push(
-      `  Files with Sanity UI:        ${data.filesWithSanityUI.toLocaleString()}`,
+      `  Files with ${UI_LIBRARY_NAME}:${" ".repeat(Math.max(1, 23 - UI_LIBRARY_NAME.length))}${data.filesWithSanityUI.toLocaleString()}`,
     );
     lines.push(
-      `  Sanity UI tags found:        ${data.tagCount.toLocaleString()}`,
+      `  ${UI_LIBRARY_NAME} tags found:${" ".repeat(Math.max(1, 23 - UI_LIBRARY_NAME.length))}${data.tagCount.toLocaleString()}`,
     );
     lines.push("");
     lines.push(
@@ -543,7 +551,7 @@ function generateTextReport(results) {
       `  UI file lines:               ${data.uiFileLines.toLocaleString()}`,
     );
     lines.push(
-      `  Sanity UI lines:             ${data.sanityUILines.toLocaleString()}`,
+      `  ${UI_LIBRARY_NAME} lines:${" ".repeat(Math.max(1, 29 - UI_LIBRARY_NAME.length))}${data.sanityUILines.toLocaleString()}`,
     );
     lines.push(
       `    ├─ Import lines:           ${data.importLines.toLocaleString()}`,
@@ -606,10 +614,10 @@ function generateTextReport(results) {
     `  UI files (with JSX):         ${grand.uiFileCount.toLocaleString()}`,
   );
   lines.push(
-    `  Files with Sanity UI:        ${grand.filesWithSanityUI.toLocaleString()}`,
+    `  Files with ${UI_LIBRARY_NAME}:${" ".repeat(Math.max(1, 23 - UI_LIBRARY_NAME.length))}${grand.filesWithSanityUI.toLocaleString()}`,
   );
   lines.push(
-    `  Sanity UI tags:              ${grand.tagCount.toLocaleString()}`,
+    `  ${UI_LIBRARY_NAME} tags:${" ".repeat(Math.max(1, 30 - UI_LIBRARY_NAME.length))}${grand.tagCount.toLocaleString()}`,
   );
   lines.push("");
   lines.push(
@@ -619,7 +627,7 @@ function generateTextReport(results) {
     `  UI file lines:               ${grand.uiFileLines.toLocaleString()}`,
   );
   lines.push(
-    `  Sanity UI lines:             ${grand.sanityUILines.toLocaleString()}`,
+    `  ${UI_LIBRARY_NAME} lines:${" ".repeat(Math.max(1, 29 - UI_LIBRARY_NAME.length))}${grand.sanityUILines.toLocaleString()}`,
   );
   lines.push(
     `    ├─ Import lines:           ${grand.importLines.toLocaleString()}`,
@@ -765,7 +773,7 @@ function generateCSV(results) {
 
   // Section 1: Codebase summary
   rows.push(
-    "Codebase,Total Files,UI Files,Files with Sanity UI,Total Lines,UI File Lines,Sanity UI Lines,Import Lines,JSX Tag Lines,Line Ownership % (UI),Tags,Avg Lines per Tag",
+    `Codebase,Total Files,UI Files,Files with ${UI_LIBRARY_NAME},Total Lines,UI File Lines,${UI_LIBRARY_NAME} Lines,Import Lines,JSX Tag Lines,Line Ownership % (UI),Tags,Avg Lines per Tag`,
   );
 
   let grandTotal = 0;
@@ -983,7 +991,7 @@ async function analyzeCodebase(codebase) {
   const agg = aggregateResults(fileResults);
 
   console.log(
-    `   ${agg.uiFileCount} UI files (${agg.uiFileLines.toLocaleString()} lines), ${agg.sanityUILines.toLocaleString()} Sanity UI lines (${pct(agg.sanityUILines, agg.uiFileLines)}%)`,
+    `   ${agg.uiFileCount} UI files (${agg.uiFileLines.toLocaleString()} lines), ${agg.sanityUILines.toLocaleString()} ${UI_LIBRARY_NAME} lines (${pct(agg.sanityUILines, agg.uiFileLines)}%)`,
   );
 
   return agg;
@@ -1000,7 +1008,7 @@ async function analyzeCodebase(codebase) {
  */
 async function main() {
   console.log("═".repeat(60));
-  console.log("  SANITY UI LINE OWNERSHIP ANALYSIS");
+  console.log(`  ${UI_LIBRARY_NAME.toUpperCase()} LINE OWNERSHIP ANALYSIS`);
   console.log("═".repeat(60));
 
   /** @type {Object<string, CodebaseLineMetrics | null>} */

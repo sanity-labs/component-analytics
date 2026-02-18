@@ -6,3 +6,6 @@ codebases
 
 # Only ignore the root-level reports directory
 /reports
+
+# Test coverage output
+scripts/__tests__/coverage

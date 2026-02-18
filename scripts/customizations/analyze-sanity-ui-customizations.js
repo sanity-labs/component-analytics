@@ -3,10 +3,10 @@
 /**
  * @module analyze-sanity-ui-customizations
  *
- * Sanity UI Customization Analysis
+ * UI Library Customization Analysis
  *
- * Scans TSX/JSX files across all codebases to measure how often Sanity UI
- * components receive inline `style` props or are wrapped with `styled()`.
+ * Scans TSX/JSX files across all codebases to measure how often tracked
+ * UI library components receive inline `style` props or are wrapped with `styled()`.
  * Captures the actual inline style properties and the styled-components
  * template content for each occurrence.
  *
@@ -17,7 +17,11 @@
  *   npm run analyze:sanity-ui-customizations
  */
 
-const { CODEBASES, SANITY_UI_COMPONENTS } = require("../lib/constants");
+const {
+  CODEBASES,
+  SANITY_UI_COMPONENTS,
+  UI_LIBRARY_NAME,
+} = require("../lib/constants");
 const { sortByCount, incr, compact } = require("../lib/utils");
 const {
   codebaseExists,
@@ -29,7 +33,7 @@ const {
 // ─── Shared regex fragment ────────────────────────────────────────────────────
 
 /**
- * Build a regex alternation string from the Sanity UI component list.
+ * Build a regex alternation string from the tracked UI component list.
  *
  * The result is cached on first call because the component list never
  * changes at runtime.
@@ -162,7 +166,7 @@ function extractMultiLineInlineStyles(content) {
 }
 
 /**
- * Extract inline `style` props from Sanity UI components in JSX.
+ * Extract inline `style` props from tracked UI library components in JSX.
  *
  * Runs a fast single-line regex pass first, then a slower but more
  * robust multi-line pass.  Results are deduplicated by component +
@@ -311,7 +315,7 @@ function matchStyledFunctionCalls(content, existing) {
 }
 
 /**
- * Extract all `styled()` usages that wrap Sanity UI components.
+ * Extract all `styled()` usages that wrap tracked UI library components.
  *
  * Combines the template-literal and function-call patterns, deduplicating
  * so that a single `styled(Card)` call is never counted twice.
@@ -382,7 +386,7 @@ function parseStyledProperties(templateStr) {
 
 /**
  * @typedef {object} InlineStyleEntry
- * @property {string}   component    - Sanity UI component name.
+ * @property {string}   component    - Tracked UI library component name.
  * @property {string}   styleContent - Raw content of the style object.
  * @property {string}   raw          - Reconstructed JSX for reference.
  * @property {string[]} properties   - Parsed property names.
@@ -390,7 +394,7 @@ function parseStyledProperties(templateStr) {
 
 /**
  * @typedef {object} StyledUsageEntry
- * @property {string}      component    - Sanity UI component being wrapped.
+ * @property {string}      component    - Tracked UI library component being wrapped.
  * @property {string}      styledContent - CSS / JS content inside styled().
  * @property {string|null} variableName - Variable the result is assigned to.
  * @property {string[]}    properties   - Parsed CSS property names.
@@ -409,7 +413,7 @@ function parseStyledProperties(templateStr) {
  */
 
 /**
- * Analyse one file's content for Sanity UI customisations.
+ * Analyse one file's content for tracked UI library customisations.
  *
  * Returns both the raw extraction results (with parsed properties
  * attached) and a quick summary object.
@@ -764,7 +768,9 @@ function formatAggregateSection(liveResults) {
 function generateTextReport(results) {
   const lines = [];
   lines.push("═".repeat(80));
-  lines.push("  SANITY UI CUSTOMIZATION ANALYSIS - INLINE STYLES & styled()");
+  lines.push(
+    `  ${UI_LIBRARY_NAME.toUpperCase()} CUSTOMIZATION ANALYSIS - INLINE STYLES & styled()`,
+  );
   lines.push("═".repeat(80));
   lines.push("");
 
@@ -959,7 +965,7 @@ function generateJSON(results) {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
- * Analyse a single codebase for Sanity UI customisations.
+ * Analyse a single codebase for tracked UI library customisations.
  *
  * Returns `null` if the codebase directory doesn't exist.
  *
@@ -972,7 +978,9 @@ async function analyzeCodebase(codebase) {
     return null;
   }
 
-  console.log(`\n📊 Analyzing Sanity UI customizations in ${codebase}...`);
+  console.log(
+    `\n📊 Analyzing ${UI_LIBRARY_NAME} customizations in ${codebase}...`,
+  );
 
   const files = await findFiles(codebase);
   console.log(`   Found ${files.length} component files`);
@@ -1003,7 +1011,7 @@ async function analyzeCodebase(codebase) {
  */
 async function main() {
   console.log("═".repeat(60));
-  console.log("  SANITY UI CUSTOMIZATION ANALYSIS");
+  console.log(`  ${UI_LIBRARY_NAME.toUpperCase()} CUSTOMIZATION ANALYSIS`);
   console.log("═".repeat(60));
 
   /** @type {Object<string, AggregatedCustomizationResult | null>} */

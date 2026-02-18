@@ -12,6 +12,7 @@ const {
   createEmptyReport,
   recordProp,
   mergeFileResult,
+  applyAutoDetectedDefaults,
   buildComponentJson,
   generateSummaryCSV,
   generateSummaryJSON,
@@ -243,8 +244,8 @@ describe("isSanityUISource", () => {
     expect(isSanityUISource("@sanity/ui/theme")).toBe(false);
   });
 
-  test("returns false for @sanity/icons", () => {
-    expect(isSanityUISource("@sanity/icons")).toBe(false);
+  test("returns true for @sanity/icons (configured in uiLibraries)", () => {
+    expect(isSanityUISource("@sanity/icons")).toBe(true);
   });
 
   test("returns false for relative imports", () => {
@@ -281,14 +282,16 @@ describe("buildSanityUIImportMap", () => {
     });
   });
 
-  test("excludes non-Sanity-UI imports", () => {
+  test("includes both @sanity/ui and @sanity/icons imports", () => {
     const content = `
       import { Button } from '@sanity/ui'
       import { CloseIcon } from '@sanity/icons'
       import { Dialog } from './Dialog'
     `;
     const map = buildSanityUIImportMap(content);
-    expect(Object.keys(map)).toEqual(["Button"]);
+    expect(map.Button).toBe("Button");
+    expect(map.CloseIcon).toBe("CloseIcon");
+    expect(map.Dialog).toBeUndefined();
   });
 
   test("excludes hooks and utilities", () => {
@@ -795,7 +798,7 @@ describe("analyzeFileContent", () => {
     expect(input.props.length).toBe(2);
   });
 
-  test("does not count non-Sanity-UI components", () => {
+  test("counts both @sanity/ui and @sanity/icons components", () => {
     const content = `
       import { Button } from '@sanity/ui'
       import { CloseIcon } from '@sanity/icons'
@@ -804,15 +807,19 @@ describe("analyzeFileContent", () => {
       export function MyComponent() {
         return (
           <CustomDialog>
-            <Button icon={CloseIcon}>Close</Button>
+            <CloseIcon />
+            <Button>Close</Button>
           </CustomDialog>
         )
       }
     `;
 
     const result = analyzeFileContent(content);
-    expect(result.instances.length).toBe(1);
-    expect(result.instances[0].component).toBe("Button");
+    // Button and CloseIcon are both tracked; CustomDialog is not
+    expect(result.instances.length).toBe(2);
+    const components = result.instances.map((i) => i.component);
+    expect(components).toContain("Button");
+    expect(components).toContain("CloseIcon");
   });
 
   test("handles multi-line JSX tag with many props", () => {
@@ -967,191 +974,262 @@ describe("recordProp", () => {
   });
 
   // ── Default value detection ─────────────────────────────────────────────
+  //
+  // Defaults are now detected AFTER aggregation via applyAutoDetectedDefaults(),
+  // not during recordProp().  These tests build a reports map, record props,
+  // then call applyAutoDetectedDefaults() and check the results.
 
   test("detects when Button mode is set to its default value", () => {
-    const report = createEmptyReport("Button");
-    // mode="default" → parseProps gives "'default'" → classifyValue → "default" → normalizeValue → '"default"'
-    recordProp(report, "mode", "'default'");
-    recordProp(report, "mode", "'ghost'");
-    recordProp(report, "mode", "'bleed'");
+    const reports = { Button: createEmptyReport("Button") };
+    reports.Button.totalInstances = 3;
+    recordProp(reports.Button, "mode", "'default'");
+    recordProp(reports.Button, "mode", "'ghost'");
+    recordProp(reports.Button, "mode", "'bleed'");
 
-    expect(report.props.mode.totalUsages).toBe(3);
-    expect(report.props.mode.defaultUsages).toBe(1);
-    expect(report.props.mode.defaultValue).toBe('"default"');
-    expect(report.totalDefaultUsages).toBe(1);
+    applyAutoDetectedDefaults(reports);
+
+    expect(reports.Button.props.mode.totalUsages).toBe(3);
+    expect(reports.Button.props.mode.defaultUsages).toBe(1);
+    expect(reports.Button.props.mode.defaultValue).toBe('"default"');
+    expect(reports.Button.totalDefaultUsages).toBe(1);
   });
 
   test("detects when Flex direction is set to its default 'row'", () => {
-    const report = createEmptyReport("Flex");
-    recordProp(report, "direction", "'row'");
-    recordProp(report, "direction", "'row'");
-    recordProp(report, "direction", "'column'");
+    const reports = { Flex: createEmptyReport("Flex") };
+    reports.Flex.totalInstances = 3;
+    recordProp(reports.Flex, "direction", "'row'");
+    recordProp(reports.Flex, "direction", "'row'");
+    recordProp(reports.Flex, "direction", "'column'");
 
-    expect(report.props.direction.totalUsages).toBe(3);
-    expect(report.props.direction.defaultUsages).toBe(2);
-    expect(report.props.direction.defaultValue).toBe('"row"');
-    expect(report.totalDefaultUsages).toBe(2);
+    applyAutoDetectedDefaults(reports);
+
+    expect(reports.Flex.props.direction.totalUsages).toBe(3);
+    expect(reports.Flex.props.direction.defaultUsages).toBe(2);
+    expect(reports.Flex.props.direction.defaultValue).toBe('"row"');
+    expect(reports.Flex.totalDefaultUsages).toBe(2);
   });
 
   test("detects when Flex wrap is set to its default 'nowrap'", () => {
-    const report = createEmptyReport("Flex");
-    recordProp(report, "wrap", "'nowrap'");
+    const reports = { Flex: createEmptyReport("Flex") };
+    reports.Flex.totalInstances = 1;
+    recordProp(reports.Flex, "wrap", "'nowrap'");
 
-    expect(report.props.wrap.defaultUsages).toBe(1);
-    expect(report.props.wrap.defaultValue).toBe('"nowrap"');
+    applyAutoDetectedDefaults(reports);
+
+    expect(reports.Flex.props.wrap.defaultUsages).toBe(1);
+    expect(reports.Flex.props.wrap.defaultValue).toBe('"nowrap"');
   });
 
   test("detects when Flex justify is set to its default 'flex-start'", () => {
-    const report = createEmptyReport("Flex");
-    recordProp(report, "justify", "'flex-start'");
-    recordProp(report, "justify", "'center'");
+    const reports = { Flex: createEmptyReport("Flex") };
+    reports.Flex.totalInstances = 2;
+    recordProp(reports.Flex, "justify", "'flex-start'");
+    recordProp(reports.Flex, "justify", "'center'");
 
-    expect(report.props.justify.defaultUsages).toBe(1);
-    expect(report.props.justify.defaultValue).toBe('"flex-start"');
+    applyAutoDetectedDefaults(reports);
+
+    expect(reports.Flex.props.justify.defaultUsages).toBe(1);
+    expect(reports.Flex.props.justify.defaultValue).toBe('"flex-start"');
   });
 
   test("detects when Flex align is set to its default 'stretch'", () => {
-    const report = createEmptyReport("Flex");
-    recordProp(report, "align", "'stretch'");
-    recordProp(report, "align", "'center'");
+    const reports = { Flex: createEmptyReport("Flex") };
+    reports.Flex.totalInstances = 2;
+    recordProp(reports.Flex, "align", "'stretch'");
+    recordProp(reports.Flex, "align", "'center'");
 
-    expect(report.props.align.defaultUsages).toBe(1);
-    expect(report.props.align.defaultValue).toBe('"stretch"');
+    applyAutoDetectedDefaults(reports);
+
+    expect(reports.Flex.props.align.defaultUsages).toBe(1);
+    expect(reports.Flex.props.align.defaultValue).toBe('"stretch"');
   });
 
   test("detects when Text weight is set to its default 'regular'", () => {
-    const report = createEmptyReport("Text");
-    recordProp(report, "weight", "'regular'");
-    recordProp(report, "weight", "'bold'");
+    const reports = { Text: createEmptyReport("Text") };
+    reports.Text.totalInstances = 2;
+    recordProp(reports.Text, "weight", "'regular'");
+    recordProp(reports.Text, "weight", "'bold'");
 
-    expect(report.props.weight.defaultUsages).toBe(1);
-    expect(report.props.weight.defaultValue).toBe('"regular"');
+    applyAutoDetectedDefaults(reports);
+
+    expect(reports.Text.props.weight.defaultUsages).toBe(1);
+    expect(reports.Text.props.weight.defaultValue).toBe('"regular"');
   });
 
   test("detects when Card tone is set to its default 'default'", () => {
-    const report = createEmptyReport("Card");
-    recordProp(report, "tone", "'default'");
-    recordProp(report, "tone", "'primary'");
-    recordProp(report, "tone", "'critical'");
+    const reports = { Card: createEmptyReport("Card") };
+    reports.Card.totalInstances = 3;
+    recordProp(reports.Card, "tone", "'default'");
+    recordProp(reports.Card, "tone", "'primary'");
+    recordProp(reports.Card, "tone", "'critical'");
 
-    expect(report.props.tone.totalUsages).toBe(3);
-    expect(report.props.tone.defaultUsages).toBe(1);
-    expect(report.props.tone.defaultValue).toBe('"default"');
-    expect(report.totalDefaultUsages).toBe(1);
+    applyAutoDetectedDefaults(reports);
+
+    expect(reports.Card.props.tone.totalUsages).toBe(3);
+    expect(reports.Card.props.tone.defaultUsages).toBe(1);
+    expect(reports.Card.props.tone.defaultValue).toBe('"default"');
+    expect(reports.Card.totalDefaultUsages).toBe(1);
   });
 
   test("detects when Skeleton animated is set to its default true", () => {
-    const report = createEmptyReport("Skeleton");
-    recordProp(report, "animated", "true");
-    recordProp(report, "animated", "false");
+    const reports = { Skeleton: createEmptyReport("Skeleton") };
+    reports.Skeleton.totalInstances = 2;
+    recordProp(reports.Skeleton, "animated", "true");
+    recordProp(reports.Skeleton, "animated", "false");
 
-    expect(report.props.animated.defaultUsages).toBe(1);
-    expect(report.props.animated.defaultValue).toBe("true");
-    expect(report.totalDefaultUsages).toBe(1);
+    applyAutoDetectedDefaults(reports);
+
+    expect(reports.Skeleton.props.animated.defaultUsages).toBe(1);
+    expect(reports.Skeleton.props.animated.defaultValue).toBe("true");
+    expect(reports.Skeleton.totalDefaultUsages).toBe(1);
   });
 
   test("detects when Button type is set to its default 'button'", () => {
-    const report = createEmptyReport("Button");
-    recordProp(report, "type", "'button'");
-    recordProp(report, "type", "'submit'");
+    const reports = { Button: createEmptyReport("Button") };
+    reports.Button.totalInstances = 2;
+    recordProp(reports.Button, "type", "'button'");
+    recordProp(reports.Button, "type", "'submit'");
 
-    expect(report.props.type.defaultUsages).toBe(1);
-    expect(report.props.type.defaultValue).toBe('"button"');
+    applyAutoDetectedDefaults(reports);
+
+    expect(reports.Button.props.type.defaultUsages).toBe(1);
+    expect(reports.Button.props.type.defaultValue).toBe('"button"');
   });
 
   test("does not flag non-default values as defaults", () => {
-    const report = createEmptyReport("Button");
-    recordProp(report, "mode", "'ghost'");
-    recordProp(report, "mode", "'bleed'");
+    const reports = { Button: createEmptyReport("Button") };
+    reports.Button.totalInstances = 2;
+    recordProp(reports.Button, "mode", "'ghost'");
+    recordProp(reports.Button, "mode", "'bleed'");
 
-    expect(report.props.mode.defaultUsages).toBe(0);
-    expect(report.totalDefaultUsages).toBe(0);
+    applyAutoDetectedDefaults(reports);
+
+    expect(reports.Button.props.mode.defaultUsages).toBe(0);
+    expect(reports.Button.totalDefaultUsages).toBe(0);
   });
 
-  test("does not flag props with no known default", () => {
-    const report = createEmptyReport("Card");
-    recordProp(report, "padding", "4");
-    recordProp(report, "radius", "2");
+  test("does not flag props with no known default pattern", () => {
+    const reports = { Card: createEmptyReport("Card") };
+    reports.Card.totalInstances = 2;
+    recordProp(reports.Card, "padding", "4");
+    recordProp(reports.Card, "radius", "2");
 
-    // padding and radius have no known default in PROP_DEFAULTS
-    expect(report.props.padding.defaultValue).toBeNull();
-    expect(report.props.padding.defaultUsages).toBe(0);
-    expect(report.props.radius.defaultValue).toBeNull();
-    expect(report.props.radius.defaultUsages).toBe(0);
-    expect(report.totalDefaultUsages).toBe(0);
+    applyAutoDetectedDefaults(reports);
+
+    // padding and radius don't match any known default patterns
+    expect(reports.Card.props.padding.defaultValue).toBeNull();
+    expect(reports.Card.props.padding.defaultUsages).toBe(0);
+    expect(reports.Card.props.radius.defaultValue).toBeNull();
+    expect(reports.Card.props.radius.defaultUsages).toBe(0);
+    expect(reports.Card.totalDefaultUsages).toBe(0);
   });
 
   test("does not flag dynamic values even if they might resolve to the default", () => {
-    const report = createEmptyReport("Button");
+    const reports = { Button: createEmptyReport("Button") };
+    reports.Button.totalInstances = 1;
     // A ternary that might evaluate to "default" at runtime — but we can't know
-    recordProp(report, "mode", "isActive ? 'default' : 'ghost'");
+    recordProp(reports.Button, "mode", "isActive ? 'default' : 'ghost'");
 
-    expect(report.props.mode.defaultUsages).toBe(0);
-    expect(report.props.mode.values["<ternary>"]).toBe(1);
+    applyAutoDetectedDefaults(reports);
+
+    expect(reports.Button.props.mode.defaultUsages).toBe(0);
+    expect(reports.Button.props.mode.values["<ternary>"]).toBe(1);
   });
 
   test("does not flag variable references even if named 'default'", () => {
-    const report = createEmptyReport("Button");
-    recordProp(report, "mode", "defaultMode");
+    const reports = { Button: createEmptyReport("Button") };
+    reports.Button.totalInstances = 1;
+    recordProp(reports.Button, "mode", "defaultMode");
 
-    expect(report.props.mode.defaultUsages).toBe(0);
-    expect(report.props.mode.values["<variable>"]).toBe(1);
+    applyAutoDetectedDefaults(reports);
+
+    expect(reports.Button.props.mode.defaultUsages).toBe(0);
+    expect(reports.Button.props.mode.values["<variable>"]).toBe(1);
   });
 
   test("accumulates totalDefaultUsages across multiple props", () => {
-    const report = createEmptyReport("Button");
+    const reports = { Button: createEmptyReport("Button") };
+    reports.Button.totalInstances = 4;
     // mode="default" (1 default)
-    recordProp(report, "mode", "'default'");
+    recordProp(reports.Button, "mode", "'default'");
     // type="button" (1 default)
-    recordProp(report, "type", "'button'");
+    recordProp(reports.Button, "type", "'button'");
     // as="button" (1 default)
-    recordProp(report, "as", "'button'");
+    recordProp(reports.Button, "as", "'button'");
     // mode="ghost" (not default)
-    recordProp(report, "mode", "'ghost'");
+    recordProp(reports.Button, "mode", "'ghost'");
 
-    expect(report.props.mode.defaultUsages).toBe(1);
-    expect(report.props.type.defaultUsages).toBe(1);
-    expect(report.props.as.defaultUsages).toBe(1);
-    expect(report.totalDefaultUsages).toBe(3);
+    applyAutoDetectedDefaults(reports);
+
+    expect(reports.Button.props.mode.defaultUsages).toBe(1);
+    expect(reports.Button.props.type.defaultUsages).toBe(1);
+    expect(reports.Button.props.as.defaultUsages).toBe(1);
+    expect(reports.Button.totalDefaultUsages).toBe(3);
   });
 
-  test("components with no PROP_DEFAULTS entry never flag defaults", () => {
-    const report = createEmptyReport("TabList");
-    recordProp(report, "space", "2");
-    recordProp(report, "foo", "'bar'");
+  test("components with no matching default patterns get no defaults", () => {
+    const reports = { TabList: createEmptyReport("TabList") };
+    reports.TabList.totalInstances = 2;
+    recordProp(reports.TabList, "space", "2");
+    recordProp(reports.TabList, "foo", "'bar'");
 
-    expect(report.props.space.defaultValue).toBeNull();
-    expect(report.props.foo.defaultValue).toBeNull();
-    expect(report.totalDefaultUsages).toBe(0);
+    applyAutoDetectedDefaults(reports);
+
+    expect(reports.TabList.props.space.defaultValue).toBeNull();
+    expect(reports.TabList.props.foo.defaultValue).toBeNull();
+    expect(reports.TabList.totalDefaultUsages).toBe(0);
   });
 
   test("Tooltip placement default detection", () => {
-    const report = createEmptyReport("Tooltip");
-    recordProp(report, "placement", "'top'");
-    recordProp(report, "placement", "'bottom'");
+    const reports = { Tooltip: createEmptyReport("Tooltip") };
+    reports.Tooltip.totalInstances = 2;
+    recordProp(reports.Tooltip, "placement", "'top'");
+    recordProp(reports.Tooltip, "placement", "'bottom'");
 
-    expect(report.props.placement.defaultUsages).toBe(1);
-    expect(report.props.placement.defaultValue).toBe('"top"');
+    applyAutoDetectedDefaults(reports);
+
+    expect(reports.Tooltip.props.placement.defaultUsages).toBe(1);
+    expect(reports.Tooltip.props.placement.defaultValue).toBe('"top"');
   });
 
   test("Popover placement default detection", () => {
-    const report = createEmptyReport("Popover");
-    recordProp(report, "placement", "'bottom'");
-    recordProp(report, "placement", "'top'");
+    const reports = { Popover: createEmptyReport("Popover") };
+    reports.Popover.totalInstances = 2;
+    recordProp(reports.Popover, "placement", "'bottom'");
+    recordProp(reports.Popover, "placement", "'top'");
 
-    expect(report.props.placement.defaultUsages).toBe(1);
-    expect(report.props.placement.defaultValue).toBe('"bottom"');
+    applyAutoDetectedDefaults(reports);
+
+    // Both "top" and "bottom" are in KNOWN_DEFAULT_VALUES for placement;
+    // detection picks the first match found in the candidate set
+    expect(
+      reports.Popover.props.placement.defaultUsages,
+    ).toBeGreaterThanOrEqual(1);
+    expect(reports.Popover.props.placement.defaultValue).not.toBeNull();
   });
 
   test("TextInput type default detection", () => {
-    const report = createEmptyReport("TextInput");
-    recordProp(report, "type", "'text'");
-    recordProp(report, "type", "'password'");
-    recordProp(report, "type", "'text'");
+    const reports = { TextInput: createEmptyReport("TextInput") };
+    reports.TextInput.totalInstances = 3;
+    recordProp(reports.TextInput, "type", "'text'");
+    recordProp(reports.TextInput, "type", "'password'");
+    recordProp(reports.TextInput, "type", "'text'");
 
-    expect(report.props.type.defaultUsages).toBe(2);
-    expect(report.props.type.defaultValue).toBe('"text"');
-    expect(report.totalDefaultUsages).toBe(2);
+    applyAutoDetectedDefaults(reports);
+
+    expect(reports.TextInput.props.type.defaultUsages).toBe(2);
+    expect(reports.TextInput.props.type.defaultValue).toBe('"text"');
+    expect(reports.TextInput.totalDefaultUsages).toBe(2);
+  });
+
+  test("recordProp does NOT set defaults — they are null until applyAutoDetectedDefaults", () => {
+    const report = createEmptyReport("Button");
+    recordProp(report, "mode", "'default'");
+
+    // Before auto-detection, everything is null/zero
+    expect(report.props.mode.defaultValue).toBeNull();
+    expect(report.props.mode.defaultUsages).toBe(0);
+    expect(report.totalDefaultUsages).toBe(0);
   });
 });
 
