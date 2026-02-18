@@ -8,7 +8,7 @@ const {
   CODEBASES,
   CODEBASE_PATHS,
   TRACKED_COMPONENTS,
-  UI_LIBRARY_NAME,
+  UI_LIBRARY_NAMES,
   isTrackedUISource,
   isOtherUISource,
   DEFAULT_GLOB_IGNORE,
@@ -48,19 +48,19 @@ function parseNamedImports(namedImportsStr) {
  * Categorize an import source into one of: tracked UI library,
  * other UI library, internal, or uncategorized.
  *
- * Uses the patterns defined in `studio-analysis.config.js` via the
+ * Uses the patterns defined in `component-analytics.config.js` via the
  * shared constants module.
  *
  * @param {string} source - The import source path
- * @returns {'sanityUI' | 'otherUI' | 'internal' | null} - The category
+ * @returns {'trackedUI' | 'otherUI' | 'internal' | null} - The category
  */
 function categorizeImportSource(source) {
-  // Tracked UI library (configured in studio-analysis.config.js)
+  // Tracked UI library (configured in component-analytics.config.js)
   if (isTrackedUISource(source)) {
-    return "sanityUI";
+    return "trackedUI";
   }
 
-  // Other UI libraries (configured in studio-analysis.config.js)
+  // Other UI libraries (configured in component-analytics.config.js)
   if (isOtherUISource(source)) {
     return "otherUI";
   }
@@ -121,12 +121,95 @@ function countJSXInstances(content) {
 }
 
 /**
+ * Strip import statements from file content so that import
+ * destructuring (`import { Button, Card } from '...'`) doesn't
+ * produce false positives when scanning for prop-value references.
+ *
+ * Replaces every `import … from '…'` statement (including multi-line
+ * destructured imports) with whitespace of the same length to
+ * preserve character offsets.
+ *
+ * @param {string} content - Raw file content.
+ * @returns {string} Content with import statements blanked out.
+ */
+function stripImportStatements(content) {
+  return content.replace(
+    /import\s+(?:\{[^}]*\}|\w+)(?:\s*,\s*(?:\{[^}]*\}|\w+))?\s+from\s+['"][^'"]+['"]\s*;?/gs,
+    (match) => " ".repeat(match.length),
+  );
+}
+
+/**
+ * Count references to imported component names that appear as prop
+ * values rather than as JSX opening tags.
+ *
+ * This catches the common pattern where icons or components are passed
+ * as props:
+ *
+ *     <Button icon={CloseIcon} />
+ *     <MenuItem icon={TrashIcon} text="Delete" />
+ *     {icon: EditIcon, label: "Edit"}
+ *
+ * Without this, icons from a separate icon package (or any component library
+ * whose exports are used as prop values rather than rendered directly)
+ * would be invisible to the sources report.
+ *
+ * Import statements are stripped before scanning to avoid false
+ * positives from import destructuring (e.g. `import { CloseIcon }`).
+ *
+ * Only names that exist in `importedNames` are counted — this avoids
+ * false positives from local variables that happen to be PascalCase.
+ *
+ * @param {string}   content       - File content.
+ * @param {string[]} importedNames - Local names imported from tracked / categorised sources.
+ * @returns {Object<string, number>} - Component name → prop-reference count.
+ */
+function countPropReferences(content, importedNames) {
+  if (importedNames.length === 0) return {};
+
+  // Remove import statements so that `import { CloseIcon }` doesn't
+  // get counted as a prop reference.
+  const stripped = stripImportStatements(content);
+
+  const counts = {};
+
+  for (const name of importedNames) {
+    // Match patterns where the name appears as a prop value:
+    //   ={Name}       — JSX expression prop:  icon={CloseIcon}
+    //   ={Name,       — inside an object/array: {icon: CloseIcon, ...}
+    //   : Name,       — object literal value:  {icon: CloseIcon}
+    //   : Name}       — last key in object
+    //   [Name,        — array element:         [CloseIcon, EditIcon]
+    //
+    // We use word-boundary matching to avoid partial matches
+    // (e.g. "CloseIcon" should not match "CloseIconWrapper").
+    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const pattern = new RegExp(
+      `(?:[=:{,\\[]\\s*)\\b${escaped}\\b(?=[\\s,}\\])])`,
+      "g",
+    );
+
+    let m;
+    let refCount = 0;
+    while ((m = pattern.exec(stripped)) !== null) {
+      refCount++;
+    }
+
+    if (refCount > 0) {
+      counts[name] = refCount;
+    }
+  }
+
+  return counts;
+}
+
+/**
  * Build a mapping from local JSX component names to their source
  * category, using the import statements in the file.
  *
- * For `import { Button, Card as UICard } from '@sanity/ui'`:
- *   - Button   → "sanityUI"
- *   - UICard   → "sanityUI"
+ * For `import { Button, Card as UICard } from '<tracked-ui-library>'`:
+ *   - Button   → "trackedUI"
+ *   - UICard   → "trackedUI"
  *
  * For `import MyWidget from './MyWidget'`:
  *   - MyWidget → "internal"
@@ -178,7 +261,7 @@ function buildImportMap(content) {
  */
 function analyzeContent(content) {
   const instances = {
-    sanityUI: { components: [], count: 0 },
+    trackedUI: { components: [], count: 0 },
     otherUI: { components: [], count: 0 },
     internal: { components: [], count: 0 },
     nativeHTML: { components: [], count: 0 },
@@ -205,9 +288,36 @@ function analyzeContent(content) {
     }
   }
 
+  // Step 2b: Count prop-value references to imported components.
+  // This catches icons and components passed as props (e.g.
+  // `icon={CloseIcon}`) that don't appear as JSX opening tags.
+  // Only count references for names that were NOT already counted
+  // as JSX instances — avoids double-counting components that are
+  // both rendered as JSX and passed as props.
+  const importedNames = Object.keys(componentToCategory);
+  const propRefs = countPropReferences(content, importedNames);
+
+  for (const [name, count] of Object.entries(propRefs)) {
+    // Subtract any JSX instances already counted for this name
+    const alreadyCounted = jsxCounts[name] || 0;
+    const additionalRefs = Math.max(0, count - alreadyCounted);
+
+    if (additionalRefs > 0) {
+      const category = componentToCategory[name];
+      if (category) {
+        for (let i = 0; i < additionalRefs; i++) {
+          instances[category].components.push(name);
+          instances[category].count++;
+          instances.total.components.push(name);
+          instances.total.count++;
+        }
+      }
+    }
+  }
+
   // Step 3: Count native HTML/SVG tags.  Each tag instance counts
-  // against Sanity UI adoption — the more raw HTML, the lower the
-  // effective percentage.
+  // against the tracked UI library adoption — the more raw HTML, the
+  // lower the effective percentage.
   const htmlTags = extractHTMLTags(content);
   for (const [tag, count] of Object.entries(htmlTags)) {
     for (let i = 0; i < count; i++) {
@@ -225,11 +335,11 @@ function analyzeContent(content) {
     imports: instances,
     jsxCounts,
     jsxCount: sumValues(jsxCounts),
-    // Track if this file has both internal and sanityUI imports
-    hasSanityUI: categoriesPresent.has("sanityUI"),
+    // Track if this file has both internal and trackedUI imports
+    hasTrackedUI: categoriesPresent.has("trackedUI"),
     hasInternal: categoriesPresent.has("internal"),
-    usesSanityUIWithInternal:
-      categoriesPresent.has("sanityUI") && categoriesPresent.has("internal"),
+    usesTrackedUIWithInternal:
+      categoriesPresent.has("trackedUI") && categoriesPresent.has("internal"),
   };
 }
 
@@ -250,7 +360,7 @@ function analyzeFile(filePath) {
  */
 function aggregateResults(fileResults) {
   const aggregated = {
-    sanityUI: { components: {}, totalInstances: 0 },
+    trackedUI: { components: {}, totalInstances: 0 },
     otherUI: { components: {}, totalInstances: 0 },
     internal: { components: {}, totalInstances: 0 },
     nativeHTML: { components: {}, totalInstances: 0 },
@@ -259,14 +369,14 @@ function aggregateResults(fileResults) {
     fileCount: fileResults.length,
     // Metrics for internal component analysis
     filesWithInternal: 0,
-    filesWithInternalUsingSanityUI: 0,
-    internalComponentsUsingSanityUI: 0,
+    filesWithInternalUsingTrackedUI: 0,
+    internalComponentsUsingTrackedUI: 0,
     totalInternalComponents: 0,
   };
 
   for (const result of fileResults) {
     // Aggregate instance counts (includes nativeHTML)
-    ["sanityUI", "otherUI", "internal", "nativeHTML", "total"].forEach(
+    ["trackedUI", "otherUI", "internal", "nativeHTML", "total"].forEach(
       (category) => {
         result.imports[category].components.forEach((comp) => {
           if (!aggregated[category].components[comp]) {
@@ -286,14 +396,14 @@ function aggregateResults(fileResults) {
       aggregated.jsxCounts[comp] += count;
     }
 
-    // Track internal component usage with Sanity UI
+    // Track internal component usage with tracked UI library
     if (result.hasInternal) {
       aggregated.filesWithInternal++;
       aggregated.totalInternalComponents += result.imports.internal.count;
 
-      if (result.usesSanityUIWithInternal) {
-        aggregated.filesWithInternalUsingSanityUI++;
-        aggregated.internalComponentsUsingSanityUI +=
+      if (result.usesTrackedUIWithInternal) {
+        aggregated.filesWithInternalUsingTrackedUI++;
+        aggregated.internalComponentsUsingTrackedUI +=
           result.imports.internal.count;
       }
     }
@@ -353,7 +463,7 @@ function generateReport(results) {
 
   reportLines.push("═".repeat(80));
   reportLines.push(
-    `       UI COMPONENT SOURCE ANALYSIS - ${UI_LIBRARY_NAME.toUpperCase()} vs OTHER COMPONENTS`,
+    `       UI COMPONENT SOURCE ANALYSIS - ${UI_LIBRARY_NAMES.toUpperCase()} vs OTHER COMPONENTS`,
   );
   reportLines.push("═".repeat(80));
   reportLines.push("");
@@ -361,10 +471,10 @@ function generateReport(results) {
     "NOTE: All numbers are JSX element instances, not import counts.",
   );
   reportLines.push(
-    `      ${UI_LIBRARY_NAME} is the tracked UI library (configured in studio-analysis.config.js).`,
+    `      ${UI_LIBRARY_NAMES} is the tracked UI library (configured in component-analytics.config.js).`,
   );
   reportLines.push(
-    `      Native HTML tag instances count against ${UI_LIBRARY_NAME} adoption.`,
+    `      Native HTML tag instances count against ${UI_LIBRARY_NAMES} adoption.`,
   );
   reportLines.push("");
 
@@ -372,76 +482,76 @@ function generateReport(results) {
   reportLines.push("CODEBASE SUMMARY (JSX INSTANCES)");
   reportLines.push("-".repeat(100));
   const libLabel =
-    UI_LIBRARY_NAME.length <= 9
-      ? UI_LIBRARY_NAME.padEnd(9)
-      : UI_LIBRARY_NAME.slice(0, 9);
+    UI_LIBRARY_NAMES.length <= 9
+      ? UI_LIBRARY_NAMES.padEnd(9)
+      : UI_LIBRARY_NAMES.slice(0, 9);
   reportLines.push(
-    `Codebase    | Files    | ${libLabel} | Other UI  | Internal  | HTML Tags | Total     | % ${UI_LIBRARY_NAME}`,
+    `Codebase    | Files    | ${libLabel} | Other UI  | Internal  | HTML Tags | Total     | % ${UI_LIBRARY_NAMES}`,
   );
   reportLines.push("-".repeat(100));
 
   let grandTotal = {
     files: 0,
-    sanityUI: 0,
+    trackedUI: 0,
     otherUI: 0,
     internal: 0,
     nativeHTML: 0,
     total: 0,
     filesWithInternal: 0,
-    filesWithInternalUsingSanityUI: 0,
+    filesWithInternalUsingTrackedUI: 0,
   };
 
   for (const [codebase, data] of Object.entries(results)) {
     if (!data) continue;
 
-    const sanityUICount = data.sanityUI.totalInstances;
+    const trackedUICount = data.trackedUI.totalInstances;
     const otherUICount = data.otherUI.totalInstances;
     const internalCount = data.internal.totalInstances;
     const nativeHTMLCount = data.nativeHTML.totalInstances;
     const totalCount = data.total.totalInstances;
-    const sanityPercent =
-      totalCount > 0 ? ((sanityUICount / totalCount) * 100).toFixed(1) : "0.0";
+    const trackedUIPercent =
+      totalCount > 0 ? ((trackedUICount / totalCount) * 100).toFixed(1) : "0.0";
 
     reportLines.push(
-      `${codebase.padEnd(11)} | ${data.fileCount.toString().padStart(8)} | ${sanityUICount.toString().padStart(9)} | ${otherUICount.toString().padStart(9)} | ${internalCount.toString().padStart(9)} | ${nativeHTMLCount.toString().padStart(9)} | ${totalCount.toString().padStart(9)} | ${sanityPercent.padStart(10)}%`,
+      `${codebase.padEnd(11)} | ${data.fileCount.toString().padStart(8)} | ${trackedUICount.toString().padStart(9)} | ${otherUICount.toString().padStart(9)} | ${internalCount.toString().padStart(9)} | ${nativeHTMLCount.toString().padStart(9)} | ${totalCount.toString().padStart(9)} | ${trackedUIPercent.padStart(10)}%`,
     );
 
     grandTotal.files += data.fileCount;
-    grandTotal.sanityUI += sanityUICount;
+    grandTotal.trackedUI += trackedUICount;
     grandTotal.otherUI += otherUICount;
     grandTotal.internal += internalCount;
     grandTotal.nativeHTML += nativeHTMLCount;
     grandTotal.total += totalCount;
     grandTotal.filesWithInternal += data.filesWithInternal;
-    grandTotal.filesWithInternalUsingSanityUI +=
-      data.filesWithInternalUsingSanityUI;
+    grandTotal.filesWithInternalUsingTrackedUI +=
+      data.filesWithInternalUsingTrackedUI;
   }
 
   reportLines.push("-".repeat(100));
-  const grandSanityPercent =
+  const grandTrackedUIPercent =
     grandTotal.total > 0
-      ? ((grandTotal.sanityUI / grandTotal.total) * 100).toFixed(1)
+      ? ((grandTotal.trackedUI / grandTotal.total) * 100).toFixed(1)
       : "0.0";
   reportLines.push(
-    `${"TOTAL".padEnd(11)} | ${grandTotal.files.toString().padStart(8)} | ${grandTotal.sanityUI.toString().padStart(9)} | ${grandTotal.otherUI.toString().padStart(9)} | ${grandTotal.internal.toString().padStart(9)} | ${grandTotal.nativeHTML.toString().padStart(9)} | ${grandTotal.total.toString().padStart(9)} | ${grandSanityPercent.padStart(10)}%`,
+    `${"TOTAL".padEnd(11)} | ${grandTotal.files.toString().padStart(8)} | ${grandTotal.trackedUI.toString().padStart(9)} | ${grandTotal.otherUI.toString().padStart(9)} | ${grandTotal.internal.toString().padStart(9)} | ${grandTotal.nativeHTML.toString().padStart(9)} | ${grandTotal.total.toString().padStart(9)} | ${grandTrackedUIPercent.padStart(10)}%`,
   );
   reportLines.push("");
 
-  // Internal components using Sanity UI section
+  // Internal components using tracked UI library section
   reportLines.push("═".repeat(80));
-  reportLines.push("INTERNAL COMPONENTS USING SANITY UI");
+  reportLines.push("INTERNAL COMPONENTS USING TRACKED UI LIBRARY");
   reportLines.push("═".repeat(80));
   reportLines.push("");
   reportLines.push(
     "This measures what percentage of files with internal/local component imports",
   );
   reportLines.push(
-    "also use Sanity UI components (indicating Sanity UI adoption in custom components).",
+    "also use tracked UI library components (indicating tracked UI library adoption in custom components).",
   );
   reportLines.push("");
   reportLines.push("-".repeat(80));
   reportLines.push(
-    "Codebase    | Files w/Internal | Using Sanity UI | % Using Sanity UI",
+    "Codebase    | Files w/Internal | Using tracked UI library | % Using tracked UI library",
   );
   reportLines.push("-".repeat(80));
 
@@ -449,14 +559,14 @@ function generateReport(results) {
     if (!data) continue;
 
     const filesWithInternal = data.filesWithInternal;
-    const filesUsingSanityUI = data.filesWithInternalUsingSanityUI;
+    const filesUsingTrackedUI = data.filesWithInternalUsingTrackedUI;
     const percent =
       filesWithInternal > 0
-        ? ((filesUsingSanityUI / filesWithInternal) * 100).toFixed(1)
+        ? ((filesUsingTrackedUI / filesWithInternal) * 100).toFixed(1)
         : "0.0";
 
     reportLines.push(
-      `${codebase.padEnd(11)} | ${filesWithInternal.toString().padStart(16)} | ${filesUsingSanityUI.toString().padStart(15)} | ${percent.padStart(16)}%`,
+      `${codebase.padEnd(11)} | ${filesWithInternal.toString().padStart(16)} | ${filesUsingTrackedUI.toString().padStart(15)} | ${percent.padStart(16)}%`,
     );
   }
 
@@ -464,13 +574,13 @@ function generateReport(results) {
   const grandInternalPercent =
     grandTotal.filesWithInternal > 0
       ? (
-          (grandTotal.filesWithInternalUsingSanityUI /
+          (grandTotal.filesWithInternalUsingTrackedUI /
             grandTotal.filesWithInternal) *
           100
         ).toFixed(1)
       : "0.0";
   reportLines.push(
-    `${"TOTAL".padEnd(11)} | ${grandTotal.filesWithInternal.toString().padStart(16)} | ${grandTotal.filesWithInternalUsingSanityUI.toString().padStart(15)} | ${grandInternalPercent.padStart(16)}%`,
+    `${"TOTAL".padEnd(11)} | ${grandTotal.filesWithInternal.toString().padStart(16)} | ${grandTotal.filesWithInternalUsingTrackedUI.toString().padStart(15)} | ${grandInternalPercent.padStart(16)}%`,
   );
   reportLines.push("");
 
@@ -483,25 +593,25 @@ function generateReport(results) {
     reportLines.push(`${codebase.toUpperCase()} - DETAILED BREAKDOWN`);
     reportLines.push("═".repeat(80));
 
-    // Top Sanity UI components (now includes icons)
+    // Top tracked UI library components (now includes icons)
     reportLines.push("");
-    reportLines.push(`TOP 20 ${UI_LIBRARY_NAME.toUpperCase()} COMPONENTS`);
+    reportLines.push(`TOP 20 ${UI_LIBRARY_NAMES.toUpperCase()} COMPONENTS`);
     reportLines.push("-".repeat(50));
 
-    const sanityUISorted = Object.entries(data.sanityUI.components)
+    const trackedUISorted = Object.entries(data.trackedUI.components)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 20);
 
-    if (sanityUISorted.length > 0) {
+    if (trackedUISorted.length > 0) {
       reportLines.push("Rank | Component              | Instances");
       reportLines.push("-".repeat(50));
-      sanityUISorted.forEach(([comp, count], index) => {
+      trackedUISorted.forEach(([comp, count], index) => {
         reportLines.push(
           `${(index + 1).toString().padStart(4)} | ${comp.padEnd(22)} | ${count.toString().padStart(12)}`,
         );
       });
     } else {
-      reportLines.push("No Sanity UI components found");
+      reportLines.push("No tracked UI library components found");
     }
 
     // Top Other UI components
@@ -573,41 +683,44 @@ function generateReport(results) {
     reportLines.push("-".repeat(60));
 
     const total = data.total.totalInstances || 1;
-    const sanityPct = ((data.sanityUI.totalInstances / total) * 100).toFixed(1);
+    const trackedUIPct = (
+      (data.trackedUI.totalInstances / total) *
+      100
+    ).toFixed(1);
     const otherPct = ((data.otherUI.totalInstances / total) * 100).toFixed(1);
     const internalPct = ((data.internal.totalInstances / total) * 100).toFixed(
       1,
     );
     const htmlPct = ((data.nativeHTML.totalInstances / total) * 100).toFixed(1);
 
-    const sanityBar = "█".repeat(Math.round(parseFloat(sanityPct) / 2));
+    const trackedUIBar = "█".repeat(Math.round(parseFloat(trackedUIPct) / 2));
     const otherBar = "█".repeat(Math.round(parseFloat(otherPct) / 2));
     const internalBar = "█".repeat(Math.round(parseFloat(internalPct) / 2));
     const htmlBar = "█".repeat(Math.round(parseFloat(htmlPct) / 2));
 
     reportLines.push(
-      `${UI_LIBRARY_NAME}:${" ".repeat(Math.max(1, 12 - UI_LIBRARY_NAME.length))}${sanityBar.padEnd(50)} ${sanityPct}%`,
+      `${UI_LIBRARY_NAMES}:${" ".repeat(Math.max(1, 12 - UI_LIBRARY_NAMES.length))}${trackedUIBar.padEnd(50)} ${trackedUIPct}%`,
     );
     reportLines.push(`Other UI:   ${otherBar.padEnd(50)} ${otherPct}%`);
     reportLines.push(`Internal:   ${internalBar.padEnd(50)} ${internalPct}%`);
     reportLines.push(`HTML Tags:  ${htmlBar.padEnd(50)} ${htmlPct}%`);
 
-    // Internal components Sanity UI adoption
+    // Internal components tracked UI library adoption
     reportLines.push("");
     reportLines.push(
-      `INTERNAL COMPONENT ${UI_LIBRARY_NAME.toUpperCase()} ADOPTION`,
+      `INTERNAL COMPONENT ${UI_LIBRARY_NAMES.toUpperCase()} ADOPTION`,
     );
     reportLines.push("-".repeat(50));
     const internalSanityPct =
       data.filesWithInternal > 0
         ? (
-            (data.filesWithInternalUsingSanityUI / data.filesWithInternal) *
+            (data.filesWithInternalUsingTrackedUI / data.filesWithInternal) *
             100
           ).toFixed(1)
         : "0.0";
     reportLines.push(`Files with internal imports: ${data.filesWithInternal}`);
     reportLines.push(
-      `Files also using ${UI_LIBRARY_NAME}:  ${data.filesWithInternalUsingSanityUI} (${internalSanityPct}%)`,
+      `Files also using ${UI_LIBRARY_NAMES}:  ${data.filesWithInternalUsingTrackedUI} (${internalSanityPct}%)`,
     );
   }
 
@@ -617,22 +730,22 @@ function generateReport(results) {
   reportLines.push("CROSS-CODEBASE ANALYSIS");
   reportLines.push("═".repeat(80));
 
-  // Aggregate all Sanity UI components across codebases
-  const allSanityUI = {};
+  // Aggregate all tracked UI library components across codebases
+  const allTrackedUI = {};
   for (const [codebase, data] of Object.entries(results)) {
     if (!data) continue;
-    for (const [comp, count] of Object.entries(data.sanityUI.components)) {
-      if (!allSanityUI[comp]) {
-        allSanityUI[comp] = { total: 0, codebases: {} };
+    for (const [comp, count] of Object.entries(data.trackedUI.components)) {
+      if (!allTrackedUI[comp]) {
+        allTrackedUI[comp] = { total: 0, codebases: {} };
       }
-      allSanityUI[comp].total += count;
-      allSanityUI[comp].codebases[codebase] = count;
+      allTrackedUI[comp].total += count;
+      allTrackedUI[comp].codebases[codebase] = count;
     }
   }
 
   reportLines.push("");
   reportLines.push(
-    `MOST USED ${UI_LIBRARY_NAME.toUpperCase()} COMPONENTS (ACROSS ALL CODEBASES)`,
+    `MOST USED ${UI_LIBRARY_NAMES.toUpperCase()} COMPONENTS (ACROSS ALL CODEBASES)`,
   );
   reportLines.push("-".repeat(80));
   reportLines.push(
@@ -640,16 +753,16 @@ function generateReport(results) {
   );
   reportLines.push("-".repeat(80));
 
-  const allSanityUISorted = Object.entries(allSanityUI)
+  const allTrackedUISorted = Object.entries(allTrackedUI)
     .sort((a, b) => b[1].total - a[1].total)
     .slice(0, 30);
 
-  allSanityUISorted.forEach(([comp, data], index) => {
-    const sanityCount = (data.codebases.sanity || 0).toString().padStart(8);
+  allTrackedUISorted.forEach(([comp, data], index) => {
+    const trackedUICount = (data.codebases.sanity || 0).toString().padStart(8);
     const canvasCount = (data.codebases.canvas || 0).toString().padStart(8);
     const hueyCount = (data.codebases.huey || 0).toString().padStart(8);
     reportLines.push(
-      `${(index + 1).toString().padStart(4)} | ${comp.padEnd(22)} | ${data.total.toString().padStart(8)} | ${sanityCount} | ${canvasCount} | ${hueyCount}`,
+      `${(index + 1).toString().padStart(4)} | ${comp.padEnd(22)} | ${data.total.toString().padStart(8)} | ${trackedUICount} | ${canvasCount} | ${hueyCount}`,
     );
   });
 
@@ -669,7 +782,7 @@ function generateReport(results) {
     `1. Total JSX element instances across all codebases: ${grandTotal.total.toLocaleString()}`,
   );
   reportLines.push(
-    `2. ${UI_LIBRARY_NAME} instances: ${grandTotal.sanityUI.toLocaleString()} (${grandSanityPercent}% of total)`,
+    `2. ${UI_LIBRARY_NAMES} instances: ${grandTotal.trackedUI.toLocaleString()} (${grandTrackedUIPercent}% of total)`,
   );
   reportLines.push(
     `3. Other UI library instances: ${grandTotal.otherUI.toLocaleString()} (${((grandTotal.otherUI / grandTotal.total) * 100).toFixed(1)}% of total)`,
@@ -681,19 +794,19 @@ function generateReport(results) {
     `5. Native HTML/SVG tag instances: ${grandTotal.nativeHTML.toLocaleString()} (${grandHTMLPercent}% of total)`,
   );
 
-  if (allSanityUISorted.length > 0) {
+  if (allTrackedUISorted.length > 0) {
     reportLines.push(
-      `6. Most used ${UI_LIBRARY_NAME} component: ${allSanityUISorted[0][0]} (${allSanityUISorted[0][1].total.toLocaleString()} instances)`,
+      `6. Most used ${UI_LIBRARY_NAMES} component: ${allTrackedUISorted[0][0]} (${allTrackedUISorted[0][1].total.toLocaleString()} instances)`,
     );
   }
 
-  const uniqueSanityUICount = Object.keys(allSanityUI).length;
+  const uniqueTrackedUICount = Object.keys(allTrackedUI).length;
   reportLines.push(
-    `7. Unique ${UI_LIBRARY_NAME} components used: ${uniqueSanityUICount}`,
+    `7. Unique ${UI_LIBRARY_NAMES} components used: ${uniqueTrackedUICount}`,
   );
 
   reportLines.push(
-    `8. Internal components using ${UI_LIBRARY_NAME}: ${grandTotal.filesWithInternalUsingSanityUI} of ${grandTotal.filesWithInternal} files (${grandInternalPercent}%)`,
+    `8. Internal components using ${UI_LIBRARY_NAMES}: ${grandTotal.filesWithInternalUsingTrackedUI} of ${grandTotal.filesWithInternal} files (${grandInternalPercent}%)`,
   );
 
   reportLines.push("");
@@ -715,8 +828,8 @@ function generateCSV(results) {
     if (!data) continue;
 
     // Tracked UI library
-    for (const [comp, count] of Object.entries(data.sanityUI.components)) {
-      rows.push(`${codebase},${UI_LIBRARY_NAME},${comp},${count}`);
+    for (const [comp, count] of Object.entries(data.trackedUI.components)) {
+      rows.push(`${codebase},${UI_LIBRARY_NAMES},${comp},${count}`);
     }
 
     // Other UI
@@ -746,23 +859,23 @@ function generateCSV(results) {
 function generateJSON(results) {
   const summary = {
     generatedAt: new Date().toISOString(),
-    note: `All numbers are JSX element instances. ${UI_LIBRARY_NAME} is the tracked UI library. Native HTML tag instances count against ${UI_LIBRARY_NAME} adoption.`,
+    note: `All numbers are JSX element instances. ${UI_LIBRARY_NAMES} is the tracked UI library. Native HTML tag instances count against ${UI_LIBRARY_NAMES} adoption.`,
     codebases: {},
     totals: {
       files: 0,
-      sanityUIInstances: 0,
+      trackedUIInstances: 0,
       otherUIInstances: 0,
       internalInstances: 0,
       nativeHTMLInstances: 0,
       totalInstances: 0,
       filesWithInternal: 0,
-      filesWithInternalUsingSanityUI: 0,
-      internalSanityUIAdoptionPercent: 0,
+      filesWithInternalUsingTrackedUI: 0,
+      internalTrackedUIAdoptionPercent: 0,
     },
-    topSanityUIComponents: [],
+    topTrackedUIComponents: [],
   };
 
-  const allSanityUI = {};
+  const allTrackedUI = {};
 
   for (const [codebase, data] of Object.entries(results)) {
     if (!data) continue;
@@ -771,7 +884,7 @@ function generateJSON(results) {
       data.filesWithInternal > 0
         ? parseFloat(
             (
-              (data.filesWithInternalUsingSanityUI / data.filesWithInternal) *
+              (data.filesWithInternalUsingTrackedUI / data.filesWithInternal) *
               100
             ).toFixed(1),
           )
@@ -779,10 +892,10 @@ function generateJSON(results) {
 
     summary.codebases[codebase] = {
       fileCount: data.fileCount,
-      sanityUI: {
-        instances: data.sanityUI.totalInstances,
-        uniqueComponents: Object.keys(data.sanityUI.components).length,
-        components: data.sanityUI.components,
+      trackedUI: {
+        instances: data.trackedUI.totalInstances,
+        uniqueComponents: Object.keys(data.trackedUI.components).length,
+        components: data.trackedUI.components,
       },
       otherUI: {
         instances: data.otherUI.totalInstances,
@@ -803,55 +916,56 @@ function generateJSON(results) {
         instances: data.total.totalInstances,
         uniqueComponents: Object.keys(data.total.components).length,
       },
-      internalSanityUIAdoption: {
+      internalTrackedUIAdoption: {
         filesWithInternal: data.filesWithInternal,
-        filesUsingSanityUI: data.filesWithInternalUsingSanityUI,
+        filesUsingTrackedUI: data.filesWithInternalUsingTrackedUI,
         adoptionPercent: internalAdoptionPercent,
       },
     };
 
     summary.totals.files += data.fileCount;
-    summary.totals.sanityUIInstances += data.sanityUI.totalInstances;
+    summary.totals.trackedUIInstances += data.trackedUI.totalInstances;
     summary.totals.otherUIInstances += data.otherUI.totalInstances;
     summary.totals.internalInstances += data.internal.totalInstances;
     summary.totals.nativeHTMLInstances += data.nativeHTML.totalInstances;
     summary.totals.totalInstances += data.total.totalInstances;
     summary.totals.filesWithInternal += data.filesWithInternal;
-    summary.totals.filesWithInternalUsingSanityUI +=
-      data.filesWithInternalUsingSanityUI;
+    summary.totals.filesWithInternalUsingTrackedUI +=
+      data.filesWithInternalUsingTrackedUI;
 
-    // Aggregate Sanity UI
-    for (const [comp, count] of Object.entries(data.sanityUI.components)) {
-      if (!allSanityUI[comp]) {
-        allSanityUI[comp] = 0;
+    // Aggregate tracked UI library
+    for (const [comp, count] of Object.entries(data.trackedUI.components)) {
+      if (!allTrackedUI[comp]) {
+        allTrackedUI[comp] = 0;
       }
-      allSanityUI[comp] += count;
+      allTrackedUI[comp] += count;
     }
   }
 
   // Calculate total internal adoption percent
-  summary.totals.internalSanityUIAdoptionPercent =
+  summary.totals.internalTrackedUIAdoptionPercent =
     summary.totals.filesWithInternal > 0
       ? parseFloat(
           (
-            (summary.totals.filesWithInternalUsingSanityUI /
+            (summary.totals.filesWithInternalUsingTrackedUI /
               summary.totals.filesWithInternal) *
             100
           ).toFixed(1),
         )
       : 0;
 
-  // Top Sanity UI components
-  summary.topSanityUIComponents = Object.entries(allSanityUI)
+  // Top tracked UI library components
+  summary.topTrackedUIComponents = Object.entries(allTrackedUI)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 30)
     .map(([name, count]) => ({ name, instances: count }));
 
-  summary.totals.sanityUIPercentage =
+  summary.totals.trackedUIPercentage =
     summary.totals.totalInstances > 0
       ? parseFloat(
           (
-            (summary.totals.sanityUIInstances / summary.totals.totalInstances) *
+            (summary.totals.trackedUIInstances /
+              summary.totals.totalInstances) *
             100
           ).toFixed(1),
         )
@@ -868,7 +982,7 @@ async function main() {
     "╔════════════════════════════════════════════════════════════════════════════╗",
   );
   console.log(
-    "║         UI COMPONENT SOURCE ANALYSIS - SANITY UI vs OTHER SOURCES         ║",
+    `║     UI COMPONENT SOURCE ANALYSIS - ${UI_LIBRARY_NAMES.toUpperCase()} vs OTHER SOURCES     ║`,
   );
   console.log(
     "╚════════════════════════════════════════════════════════════════════════════╝",
@@ -878,10 +992,10 @@ async function main() {
     "NOTE: All numbers are JSX element instances (not import counts).",
   );
   console.log(
-    `      ${UI_LIBRARY_NAME} is the tracked UI library (from studio-analysis.config.js).`,
+    `      ${UI_LIBRARY_NAMES} is the tracked UI library (from component-analytics.config.js).`,
   );
   console.log(
-    `      Native HTML tag instances count against ${UI_LIBRARY_NAME} adoption.`,
+    `      Native HTML tag instances count against ${UI_LIBRARY_NAMES} adoption.`,
   );
 
   const results = {};
@@ -892,29 +1006,26 @@ async function main() {
   }
 
   // Generate reports
-  const outputDir = path.resolve(
-    __dirname,
-    "../../reports/ui-component-sources",
-  );
+  const outputDir = path.resolve(__dirname, "../../reports/sources");
   if (!fs.existsSync(outputDir)) {
     fs.mkdirSync(outputDir, { recursive: true });
   }
 
   // Text report
   const textReport = generateReport(results);
-  const textPath = path.join(outputDir, "ui-component-sources-report.txt");
+  const textPath = path.join(outputDir, "report.txt");
   fs.writeFileSync(textPath, textReport);
   console.log(`\n✅ Text report saved to: ${textPath}`);
 
   // CSV report
   const csvReport = generateCSV(results);
-  const csvPath = path.join(outputDir, "ui-component-sources-report.csv");
+  const csvPath = path.join(outputDir, "report.csv");
   fs.writeFileSync(csvPath, csvReport);
   console.log(`✅ CSV report saved to: ${csvPath}`);
 
   // JSON report
   const jsonReport = generateJSON(results);
-  const jsonPath = path.join(outputDir, "ui-component-sources-report.json");
+  const jsonPath = path.join(outputDir, "report.json");
   fs.writeFileSync(jsonPath, jsonReport);
   console.log(`✅ JSON report saved to: ${jsonPath}`);
 
@@ -923,54 +1034,54 @@ async function main() {
   console.log("QUICK SUMMARY");
   console.log("═".repeat(80));
 
-  let totalSanityUI = 0;
+  let totalTrackedUI = 0;
   let totalOther = 0;
   let totalInternal = 0;
   let totalAll = 0;
   let totalFilesWithInternal = 0;
-  let totalFilesWithInternalUsingSanityUI = 0;
+  let totalFilesWithInternalUsingTrackedUI = 0;
 
   for (const [codebase, data] of Object.entries(results)) {
     if (data) {
-      totalSanityUI += data.sanityUI.totalInstances;
+      totalTrackedUI += data.trackedUI.totalInstances;
       totalOther += data.otherUI.totalInstances;
       totalInternal += data.internal.totalInstances;
       totalAll += data.total.totalInstances;
       totalFilesWithInternal += data.filesWithInternal;
-      totalFilesWithInternalUsingSanityUI +=
-        data.filesWithInternalUsingSanityUI;
+      totalFilesWithInternalUsingTrackedUI +=
+        data.filesWithInternalUsingTrackedUI;
 
       const pct =
         data.total.totalInstances > 0
           ? (
-              (data.sanityUI.totalInstances / data.total.totalInstances) *
+              (data.trackedUI.totalInstances / data.total.totalInstances) *
               100
             ).toFixed(1)
           : "0.0";
       console.log(
-        `${codebase.padEnd(10)}: ${data.sanityUI.totalInstances.toLocaleString().padStart(6)} ${UI_LIBRARY_NAME} / ${data.nativeHTML.totalInstances.toLocaleString().padStart(6)} HTML / ${data.total.totalInstances.toLocaleString().padStart(6)} total (${pct}% ${UI_LIBRARY_NAME})`,
+        `${codebase.padEnd(10)}: ${data.trackedUI.totalInstances.toLocaleString().padStart(6)} ${UI_LIBRARY_NAMES} / ${data.nativeHTML.totalInstances.toLocaleString().padStart(6)} HTML / ${data.total.totalInstances.toLocaleString().padStart(6)} total (${pct}% ${UI_LIBRARY_NAMES})`,
       );
     }
   }
 
   console.log("-".repeat(50));
   const totalPct =
-    totalAll > 0 ? ((totalSanityUI / totalAll) * 100).toFixed(1) : "0.0";
+    totalAll > 0 ? ((totalTrackedUI / totalAll) * 100).toFixed(1) : "0.0";
   console.log(
-    `${"TOTAL".padEnd(10)}: ${totalSanityUI.toLocaleString().padStart(6)} ${UI_LIBRARY_NAME} / ${totalAll.toLocaleString().padStart(6)} total (${totalPct}%)`,
+    `${"TOTAL".padEnd(10)}: ${totalTrackedUI.toLocaleString().padStart(6)} ${UI_LIBRARY_NAMES} / ${totalAll.toLocaleString().padStart(6)} total (${totalPct}%)`,
   );
 
   console.log("");
-  console.log(`INTERNAL COMPONENTS USING ${UI_LIBRARY_NAME.toUpperCase()}:`);
+  console.log(`INTERNAL COMPONENTS USING ${UI_LIBRARY_NAMES.toUpperCase()}:`);
   const internalPct =
     totalFilesWithInternal > 0
       ? (
-          (totalFilesWithInternalUsingSanityUI / totalFilesWithInternal) *
+          (totalFilesWithInternalUsingTrackedUI / totalFilesWithInternal) *
           100
         ).toFixed(1)
       : "0.0";
   console.log(
-    `${totalFilesWithInternalUsingSanityUI} of ${totalFilesWithInternal} files with internal components also use ${UI_LIBRARY_NAME} (${internalPct}%)`,
+    `${totalFilesWithInternalUsingTrackedUI} of ${totalFilesWithInternal} files with internal components also use ${UI_LIBRARY_NAMES} (${internalPct}%)`,
   );
   console.log("");
 }
@@ -986,6 +1097,8 @@ module.exports = {
   analyzeFile,
   aggregateResults,
   analyzeCodebase,
+  countPropReferences,
+  stripImportStatements,
   generateReport,
   generateCSV,
   generateJSON,

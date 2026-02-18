@@ -4,7 +4,7 @@ module.exports = {
   collectCoverageFrom: [
     "scripts/sources/analyze-ui-component-sources.js",
     "scripts/html-tags/analyze-html-tags.js",
-    "scripts/customizations/analyze-sanity-ui-customizations.js",
+    "scripts/customizations/analyze-customizations.js",
     "scripts/per-component/analyze-per-component.js",
     "scripts/per-component/detect-prop-defaults.js",
     "scripts/lib/constants.js",
@@ -46,7 +46,7 @@ module.exports = {
     },
 
     // ── Customizations — extraction + aggregation well-tested ───────────
-    "scripts/customizations/analyze-sanity-ui-customizations.js": {
+    "scripts/customizations/analyze-customizations.js": {
       branches: 60,
       functions: 80,
       lines: 75,

@@ -128,9 +128,9 @@ function reportDir(subdir) {
  * Creates the directory if it does not already exist.  File names are
  * derived from `baseName`:
  *
- * - `<baseName>-report.txt`
- * - `<baseName>-report.csv`
- * - `<baseName>-report.json`
+ * - `<baseName>.txt`
+ * - `<baseName>.csv`
+ * - `<baseName>.json`
  *
  * @param {string}       subdir   - Subdirectory under `reports/`.
  * @param {string}       baseName - Stem used for the three file names.
@@ -142,9 +142,9 @@ function writeReports(subdir, baseName, reports) {
   const dir = reportDir(subdir);
   ensureDir(dir);
 
-  const txtPath = path.join(dir, `${baseName}-report.txt`);
-  const csvPath = path.join(dir, `${baseName}-report.csv`);
-  const jsonPath = path.join(dir, `${baseName}-report.json`);
+  const txtPath = path.join(dir, `${baseName}.txt`);
+  const csvPath = path.join(dir, `${baseName}.csv`);
+  const jsonPath = path.join(dir, `${baseName}.json`);
 
   fs.writeFileSync(txtPath, reports.text);
   fs.writeFileSync(csvPath, reports.csv);

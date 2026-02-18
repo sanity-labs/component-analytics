@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * @module analyze-sanity-ui-customizations
+ * @module analyze-customizations
  *
  * UI Library Customization Analysis
  *
@@ -11,7 +11,7 @@
  * template content for each occurrence.
  *
  * Run directly:
- *   node scripts/analyze-sanity-ui-customizations.js
+ *   node scripts/analyze-customizations.js
  *
  * Or via npm:
  *   npm run analyze:sanity-ui-customizations
@@ -19,8 +19,8 @@
 
 const {
   CODEBASES,
-  SANITY_UI_COMPONENTS,
-  UI_LIBRARY_NAME,
+  TRACKED_COMPONENTS,
+  UI_LIBRARY_NAMES,
 } = require("../lib/constants");
 const { sortByCount, incr, compact } = require("../lib/utils");
 const {
@@ -43,7 +43,7 @@ const {
 let _cachedPattern = null;
 function componentPattern() {
   if (!_cachedPattern) {
-    _cachedPattern = SANITY_UI_COMPONENTS.join("|");
+    _cachedPattern = TRACKED_COMPONENTS.join("|");
   }
   return _cachedPattern;
 }
@@ -769,7 +769,7 @@ function generateTextReport(results) {
   const lines = [];
   lines.push("═".repeat(80));
   lines.push(
-    `  ${UI_LIBRARY_NAME.toUpperCase()} CUSTOMIZATION ANALYSIS - INLINE STYLES & styled()`,
+    `  ${UI_LIBRARY_NAMES.toUpperCase()} CUSTOMIZATION ANALYSIS - INLINE STYLES & styled()`,
   );
   lines.push("═".repeat(80));
   lines.push("");
@@ -979,7 +979,7 @@ async function analyzeCodebase(codebase) {
   }
 
   console.log(
-    `\n📊 Analyzing ${UI_LIBRARY_NAME} customizations in ${codebase}...`,
+    `\n📊 Analyzing ${UI_LIBRARY_NAMES} customizations in ${codebase}...`,
   );
 
   const files = await findFiles(codebase);
@@ -1011,7 +1011,7 @@ async function analyzeCodebase(codebase) {
  */
 async function main() {
   console.log("═".repeat(60));
-  console.log(`  ${UI_LIBRARY_NAME.toUpperCase()} CUSTOMIZATION ANALYSIS`);
+  console.log(`  ${UI_LIBRARY_NAMES.toUpperCase()} CUSTOMIZATION ANALYSIS`);
   console.log("═".repeat(60));
 
   /** @type {Object<string, AggregatedCustomizationResult | null>} */
@@ -1020,7 +1020,7 @@ async function main() {
     results[codebase] = await analyzeCodebase(codebase);
   }
 
-  writeReports("sanity-ui-customizations", "sanity-ui-customizations", {
+  writeReports("customizations", "report", {
     text: generateTextReport(results),
     csv: generateCSV(results),
     json: generateJSON(results),
@@ -1088,8 +1088,8 @@ module.exports = {
   buildCsvRow,
   buildCodebaseJsonSummary,
 
-  // Re-export so existing tests that import sortByCount/SANITY_UI_COMPONENTS
+  // Re-export so existing tests that import sortByCount/TRACKED_COMPONENTS
   // from this module continue to work.
   sortByCount,
-  SANITY_UI_COMPONENTS,
+  TRACKED_COMPONENTS,
 };

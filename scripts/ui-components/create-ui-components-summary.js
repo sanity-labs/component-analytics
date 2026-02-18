@@ -5,9 +5,9 @@ const path = require("path");
 const CODEBASES = ["sanity", "canvas", "huey"];
 
 function createUISummary(codebase) {
-  const inputPath = `reports/${codebase}/ui-components/ui-components-report.json`;
-  const summaryPath = `reports/${codebase}/ui-components/ui-components-summary.csv`;
-  const statsPath = `reports/${codebase}/ui-components/ui-components-stats.txt`;
+  const inputPath = `reports/${codebase}/wrappers/wrappers.json`;
+  const summaryPath = `reports/${codebase}/wrappers/summary.csv`;
+  const statsPath = `reports/${codebase}/wrappers/stats.txt`;
 
   // Check if input file exists
   if (!fs.existsSync(inputPath)) {

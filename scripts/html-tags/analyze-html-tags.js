@@ -8,7 +8,7 @@
  * Scans TSX/JSX files across all codebases and counts raw HTML tag usage.
  * Produces per-codebase and aggregate reports showing which native HTML
  * elements are used most frequently, helping identify opportunities to
- * replace raw HTML with Sanity UI primitives.
+ * replace raw HTML with tracked UI library primitives.
  *
  * Run directly:
  *   node scripts/analyze-html-tags.js
@@ -612,7 +612,7 @@ async function main() {
     results[codebase] = await analyzeCodebase(codebase);
   }
 
-  writeReports("html-tags", "html-tags", {
+  writeReports("html-tags", "report", {
     text: generateTextReport(results),
     csv: generateCSV(results),
     json: generateJSON(results),

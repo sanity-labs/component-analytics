@@ -4,7 +4,7 @@
  * Shared constants used across all analysis scripts.
  *
  * Everything in this module is derived from the project-level
- * configuration file `studio-analysis.config.js`.  Scripts should
+ * configuration file `component-analytics.config.js`.  Scripts should
  * import values from here rather than reading the config directly —
  * this keeps a single point of derivation and ensures every script
  * sees the same resolved values.
@@ -28,14 +28,14 @@ const fs = require("fs");
  * Resolve the absolute path to the project-root config file.
  *
  * Walks up from `__dirname` (which is `scripts/lib/`) looking for
- * `studio-analysis.config.js`.  Returns `null` if not found.
+ * `component-analytics.config.js`.  Returns `null` if not found.
  *
  * @returns {string | null}
  */
 function findConfigPath() {
   let dir = path.resolve(__dirname, "../..");
   for (let i = 0; i < 5; i++) {
-    const candidate = path.join(dir, "studio-analysis.config.js");
+    const candidate = path.join(dir, "component-analytics.config.js");
     if (fs.existsSync(candidate)) return candidate;
     const parent = path.dirname(dir);
     if (parent === dir) break;
@@ -67,7 +67,7 @@ function loadConfig() {
     ],
     uiLibraries: [
       {
-        name: "Sanity UI",
+        name: "UI Library",
         importSources: ["@sanity/ui"],
         excludeSources: ["@sanity/ui/theme"],
         components: [],
@@ -117,7 +117,7 @@ const CODEBASES = CONFIG.codebases.map((cb) => cb.name);
  *
  * Used by `lib/files.js` to resolve codebase directories.  Paths in
  * the config are relative to the project root (where
- * `studio-analysis.config.js` lives).
+ * `component-analytics.config.js` lives).
  *
  * @type {Object<string, string>}
  */
@@ -175,6 +175,24 @@ const PRIMARY_UI_LIBRARY = ALL_UI_LIBRARIES[0] || {
 const UI_LIBRARY_NAME = PRIMARY_UI_LIBRARY.name;
 
 /**
+ * Human-readable label covering ALL tracked UI libraries.
+ *
+ * When a single library is configured this equals {@link UI_LIBRARY_NAME}.
+ * When multiple libraries are configured the names are joined with " & "
+ * (e.g. `"Sanity UI & Sanity Icons"`).
+ *
+ * Use this in report headers / summaries that aggregate data across
+ * every tracked library.  Use {@link UI_LIBRARY_NAME} when you only
+ * need to refer to the primary library.
+ *
+ * @type {string}
+ */
+const UI_LIBRARY_NAMES =
+  ALL_UI_LIBRARIES.length <= 1
+    ? UI_LIBRARY_NAME
+    : ALL_UI_LIBRARIES.map((lib) => lib.name).join(" & ");
+
+/**
  * Canonical list of component names merged from ALL configured UI
  * libraries.
  *
@@ -187,13 +205,6 @@ const UI_LIBRARY_NAME = PRIMARY_UI_LIBRARY.name;
 const TRACKED_COMPONENTS = [
   ...new Set(ALL_UI_LIBRARIES.flatMap((lib) => lib.components)),
 ];
-
-/**
- * @deprecated Use {@link TRACKED_COMPONENTS} instead.  This alias
- * exists solely for backward compatibility with scripts and tests
- * that were written when the tool was Sanity-UI-specific.
- */
-const SANITY_UI_COMPONENTS = TRACKED_COMPONENTS;
 
 /**
  * Known default prop values for the tracked UI library's components.
@@ -214,7 +225,7 @@ const PROP_DEFAULTS = PRIMARY_UI_LIBRARY.propDefaults || {};
  * Import-source substrings that identify any tracked UI library,
  * merged from ALL configured libraries.
  *
- * An import like `import { Button } from '@sanity/ui'` matches if
+ * An import like `import { Button } from '<tracked-ui-library>'` matches if
  * the source string contains any of these substrings.
  *
  * @type {string[]}
@@ -229,7 +240,7 @@ const UI_IMPORT_SOURCES = [
  *
  * Even if a source matches `UI_IMPORT_SOURCES`, it is excluded if it
  * also matches any of these substrings.  For example,
- * `@sanity/ui/theme` is excluded so that theme-only imports aren't
+ * Excluded sources (configured in config) are excluded so that theme-only imports aren't
  * counted as component usage.
  *
  * @type {string[]}
@@ -244,10 +255,10 @@ const UI_EXCLUDE_SOURCES = [
  * Returns `true` if the source matches any `UI_IMPORT_SOURCES` entry
  * AND does not match any `UI_EXCLUDE_SOURCES` entry.
  *
- * This function replaces the many duplicated `isSanityUISource()`
+ * This function replaces the many duplicated `isTrackedUISource()`
  * functions that were previously hardcoded in individual scripts.
  *
- * @param {string} source - The import path (e.g. `"@sanity/ui"`).
+ * @param {string} source - The import path (e.g. `"@my-org/ui"`).
  * @returns {boolean}
  */
 function isTrackedUISource(source) {
@@ -504,8 +515,8 @@ module.exports = {
   ALL_UI_LIBRARIES,
   PRIMARY_UI_LIBRARY,
   UI_LIBRARY_NAME,
+  UI_LIBRARY_NAMES,
   TRACKED_COMPONENTS,
-  SANITY_UI_COMPONENTS, // backward-compat alias for TRACKED_COMPONENTS
   PROP_DEFAULTS,
   UI_IMPORT_SOURCES,
   UI_EXCLUDE_SOURCES,

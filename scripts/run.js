@@ -132,7 +132,7 @@ const STEPS = {
     console.log("\n" + "═".repeat(60));
     console.log("  STEP: Customizations");
     console.log("═".repeat(60));
-    runScript("customizations/analyze-sanity-ui-customizations.js");
+    runScript("customizations/analyze-customizations.js");
   },
 
   /**
@@ -203,7 +203,7 @@ function main() {
   console.log("╚════════════════════════════════════════════════════════╝");
   console.log("");
   console.log(`  Codebases: ${CODEBASES.join(", ")}`);
-  console.log(`  Config:    studio-analysis.config.js`);
+  console.log(`  Config:    component-analytics.config.js`);
 
   const requestedStep = parseRequestedStep();
 

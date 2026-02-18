@@ -5,8 +5,8 @@ const path = require("path");
 const CODEBASES = ["sanity", "canvas", "huey"];
 
 function generateStats(codebase) {
-  const inputPath = `reports/${codebase}/components/component-usage-report.json`;
-  const outputPath = `reports/${codebase}/components/component-analysis-stats.txt`;
+  const inputPath = `reports/${codebase}/all-components/all-components.json`;
+  const outputPath = `reports/${codebase}/all-components/stats.txt`;
 
   // Check if input file exists
   if (!fs.existsSync(inputPath)) {

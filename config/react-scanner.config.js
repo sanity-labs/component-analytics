@@ -57,8 +57,8 @@ const libSlug = UI_LIBRARY_NAME.toLowerCase().replace(/[^a-z0-9]+/g, "-");
 const SCAN_TYPES = {
   components: {
     importedFrom: null, // will be set per-codebase below
-    outputDir: (cb) => `${cb}/components`,
-    outputFile: "component-usage-report.json",
+    outputDir: (cb) => `${cb}/all-components`,
+    outputFile: "all-components.json",
     useCodebaseFilter: true,
   },
   "ui-library": {
@@ -69,20 +69,20 @@ const SCAN_TYPES = {
   },
   "ui-wrappers": {
     importedFrom: /ui-components/,
-    outputDir: (cb) => `${cb}/ui-components`,
-    outputFile: "ui-components-report.json",
+    outputDir: (cb) => `${cb}/wrappers`,
+    outputFile: "wrappers.json",
     useCodebaseFilter: false,
   },
   icons: {
     importedFrom: /@sanity\/icons/,
     outputDir: (cb) => `${cb}/icons`,
-    outputFile: "icon-usage-report.json",
+    outputFile: "icons.json",
     useCodebaseFilter: false,
   },
   all: {
     importedFrom: null,
-    outputDir: (cb) => `${cb}/all-components`,
-    outputFile: "all-components-report.json",
+    outputDir: (cb) => `${cb}/all-unfiltered`,
+    outputFile: "all-unfiltered.json",
     useCodebaseFilter: false,
   },
 };

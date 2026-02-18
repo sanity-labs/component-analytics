@@ -1,9 +1,10 @@
+const { UI_LIBRARY_NAMES } = require("../lib/constants");
 const {
   lineNumberAt,
   extractImports,
   parseNamedImports,
-  isSanityUISource,
-  buildSanityUIImportMap,
+  isTrackedUISource,
+  buildTrackedUIImportMap,
   findTagEnd,
   parseProps,
   classifyValue,
@@ -228,44 +229,44 @@ describe("parseNamedImports", () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// isSanityUISource
+// isTrackedUISource
 // ═══════════════════════════════════════════════════════════════════════════════
 
-describe("isSanityUISource", () => {
+describe("isTrackedUISource", () => {
   test('returns true for "@sanity/ui"', () => {
-    expect(isSanityUISource("@sanity/ui")).toBe(true);
+    expect(isTrackedUISource("@sanity/ui")).toBe(true);
   });
 
   test("returns true for @sanity/ui subpath", () => {
-    expect(isSanityUISource("@sanity/ui/components")).toBe(true);
+    expect(isTrackedUISource("@sanity/ui/components")).toBe(true);
   });
 
   test("returns false for @sanity/ui/theme", () => {
-    expect(isSanityUISource("@sanity/ui/theme")).toBe(false);
+    expect(isTrackedUISource("@sanity/ui/theme")).toBe(false);
   });
 
   test("returns true for @sanity/icons (configured in uiLibraries)", () => {
-    expect(isSanityUISource("@sanity/icons")).toBe(true);
+    expect(isTrackedUISource("@sanity/icons")).toBe(true);
   });
 
   test("returns false for relative imports", () => {
-    expect(isSanityUISource("./Button")).toBe(false);
+    expect(isTrackedUISource("./Button")).toBe(false);
   });
 
   test("returns false for other packages", () => {
-    expect(isSanityUISource("react")).toBe(false);
-    expect(isSanityUISource("@radix-ui/react-popover")).toBe(false);
+    expect(isTrackedUISource("react")).toBe(false);
+    expect(isTrackedUISource("@radix-ui/react-popover")).toBe(false);
   });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// buildSanityUIImportMap
+// buildTrackedUIImportMap
 // ═══════════════════════════════════════════════════════════════════════════════
 
-describe("buildSanityUIImportMap", () => {
+describe("buildTrackedUIImportMap", () => {
   test("maps standard imports", () => {
     const content = `import { Button, Card, Flex } from '@sanity/ui'`;
-    const map = buildSanityUIImportMap(content);
+    const map = buildTrackedUIImportMap(content);
     expect(map).toEqual({
       Button: "Button",
       Card: "Card",
@@ -275,7 +276,7 @@ describe("buildSanityUIImportMap", () => {
 
   test("maps aliased imports", () => {
     const content = `import { Button as Btn, Card as UICard } from '@sanity/ui'`;
-    const map = buildSanityUIImportMap(content);
+    const map = buildTrackedUIImportMap(content);
     expect(map).toEqual({
       Btn: "Button",
       UICard: "Card",
@@ -288,7 +289,7 @@ describe("buildSanityUIImportMap", () => {
       import { CloseIcon } from '@sanity/icons'
       import { Dialog } from './Dialog'
     `;
-    const map = buildSanityUIImportMap(content);
+    const map = buildTrackedUIImportMap(content);
     expect(map.Button).toBe("Button");
     expect(map.CloseIcon).toBe("CloseIcon");
     expect(map.Dialog).toBeUndefined();
@@ -296,30 +297,30 @@ describe("buildSanityUIImportMap", () => {
 
   test("excludes hooks and utilities", () => {
     const content = `import { Button, useToast, rem } from '@sanity/ui'`;
-    const map = buildSanityUIImportMap(content);
+    const map = buildTrackedUIImportMap(content);
     expect(map).toEqual({ Button: "Button" });
   });
 
   test("excludes @sanity/ui/theme imports", () => {
     const content = `import { Theme } from '@sanity/ui/theme'`;
-    const map = buildSanityUIImportMap(content);
+    const map = buildTrackedUIImportMap(content);
     expect(map).toEqual({});
   });
 
-  test("returns empty map for no Sanity UI imports", () => {
+  test("returns empty map for no tracked UI library imports", () => {
     const content = `import { useState } from 'react'`;
-    const map = buildSanityUIImportMap(content);
+    const map = buildTrackedUIImportMap(content);
     expect(map).toEqual({});
   });
 
   test("returns empty map for empty content", () => {
-    expect(buildSanityUIImportMap("")).toEqual({});
+    expect(buildTrackedUIImportMap("")).toEqual({});
   });
 
-  test("only includes components in the SANITY_UI_COMPONENTS list", () => {
+  test("only includes components in the TRACKED_COMPONENTS list", () => {
     // "SomethingRandom" is PascalCase but not in the list
     const content = `import { Button, SomethingRandom } from '@sanity/ui'`;
-    const map = buildSanityUIImportMap(content);
+    const map = buildTrackedUIImportMap(content);
     expect(map).toEqual({ Button: "Button" });
   });
 });
@@ -604,7 +605,7 @@ describe("normalizeValue", () => {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 describe("analyzeFileContent", () => {
-  test("finds Sanity UI imports and JSX instances with props", () => {
+  test("finds tracked UI library imports and JSX instances with props", () => {
     const content = `
       import { Button, Card } from '@sanity/ui'
 
@@ -721,7 +722,7 @@ describe("analyzeFileContent", () => {
     expect(result.instances[0].component).toBe("Button");
   });
 
-  test("returns empty instances for file with no Sanity UI imports", () => {
+  test("returns empty instances for file with no tracked UI library imports", () => {
     const content = `
       import { useState } from 'react'
       export function Hook() { return null }
@@ -1727,7 +1728,9 @@ describe("generateSummaryText", () => {
       Button: createEmptyReport("Button"),
     });
 
-    expect(text).toContain("PER-COMPONENT SANITY UI ANALYSIS");
+    expect(text).toContain(
+      `PER-COMPONENT ${UI_LIBRARY_NAMES.toUpperCase()} ANALYSIS`,
+    );
   });
 
   test("includes component name in ranked table", () => {

@@ -9,56 +9,56 @@
 
 // ── Per-component reports ─────────────────────────────────────────────────────
 
-import perComponentSummary from "@reports/per-component/per-component-summary.json";
+import perComponentSummary from "@reports/components/summary.json";
 
 // Individual component detail files
-import Autocomplete from "@reports/per-component/components/Autocomplete.json";
-import Avatar from "@reports/per-component/components/Avatar.json";
-import AvatarCounter from "@reports/per-component/components/AvatarCounter.json";
-import AvatarStack from "@reports/per-component/components/AvatarStack.json";
-import Badge from "@reports/per-component/components/Badge.json";
-import BoundaryElementProvider from "@reports/per-component/components/BoundaryElementProvider.json";
-import Box from "@reports/per-component/components/Box.json";
-import Button from "@reports/per-component/components/Button.json";
-import Card from "@reports/per-component/components/Card.json";
-import Checkbox from "@reports/per-component/components/Checkbox.json";
-import Code from "@reports/per-component/components/Code.json";
-import Container from "@reports/per-component/components/Container.json";
-import Dialog from "@reports/per-component/components/Dialog.json";
-import ErrorBoundary from "@reports/per-component/components/ErrorBoundary.json";
-import Flex from "@reports/per-component/components/Flex.json";
-import Grid from "@reports/per-component/components/Grid.json";
-import Heading from "@reports/per-component/components/Heading.json";
-import Inline from "@reports/per-component/components/Inline.json";
-import KBD from "@reports/per-component/components/KBD.json";
-import Label from "@reports/per-component/components/Label.json";
-import Layer from "@reports/per-component/components/Layer.json";
-import LayerProvider from "@reports/per-component/components/LayerProvider.json";
-import Menu from "@reports/per-component/components/Menu.json";
-import MenuButton from "@reports/per-component/components/MenuButton.json";
-import MenuDivider from "@reports/per-component/components/MenuDivider.json";
-import MenuGroup from "@reports/per-component/components/MenuGroup.json";
-import MenuItem from "@reports/per-component/components/MenuItem.json";
-import Popover from "@reports/per-component/components/Popover.json";
-import Portal from "@reports/per-component/components/Portal.json";
-import PortalProvider from "@reports/per-component/components/PortalProvider.json";
-import Radio from "@reports/per-component/components/Radio.json";
-import Select from "@reports/per-component/components/Select.json";
-import Skeleton from "@reports/per-component/components/Skeleton.json";
-import Spinner from "@reports/per-component/components/Spinner.json";
-import Stack from "@reports/per-component/components/Stack.json";
-import Switch from "@reports/per-component/components/Switch.json";
-import Tab from "@reports/per-component/components/Tab.json";
-import TabList from "@reports/per-component/components/TabList.json";
-import TabPanel from "@reports/per-component/components/TabPanel.json";
-import Text from "@reports/per-component/components/Text.json";
-import TextArea from "@reports/per-component/components/TextArea.json";
-import TextInput from "@reports/per-component/components/TextInput.json";
-import TextSkeleton from "@reports/per-component/components/TextSkeleton.json";
-import ThemeColorProvider from "@reports/per-component/components/ThemeColorProvider.json";
-import ThemeProvider from "@reports/per-component/components/ThemeProvider.json";
-import Tooltip from "@reports/per-component/components/Tooltip.json";
-import TooltipDelayGroupProvider from "@reports/per-component/components/TooltipDelayGroupProvider.json";
+import Autocomplete from "@reports/components/detail/Autocomplete.json";
+import Avatar from "@reports/components/detail/Avatar.json";
+import AvatarCounter from "@reports/components/detail/AvatarCounter.json";
+import AvatarStack from "@reports/components/detail/AvatarStack.json";
+import Badge from "@reports/components/detail/Badge.json";
+import BoundaryElementProvider from "@reports/components/detail/BoundaryElementProvider.json";
+import Box from "@reports/components/detail/Box.json";
+import Button from "@reports/components/detail/Button.json";
+import Card from "@reports/components/detail/Card.json";
+import Checkbox from "@reports/components/detail/Checkbox.json";
+import Code from "@reports/components/detail/Code.json";
+import Container from "@reports/components/detail/Container.json";
+import Dialog from "@reports/components/detail/Dialog.json";
+import ErrorBoundary from "@reports/components/detail/ErrorBoundary.json";
+import Flex from "@reports/components/detail/Flex.json";
+import Grid from "@reports/components/detail/Grid.json";
+import Heading from "@reports/components/detail/Heading.json";
+import Inline from "@reports/components/detail/Inline.json";
+import KBD from "@reports/components/detail/KBD.json";
+import Label from "@reports/components/detail/Label.json";
+import Layer from "@reports/components/detail/Layer.json";
+import LayerProvider from "@reports/components/detail/LayerProvider.json";
+import Menu from "@reports/components/detail/Menu.json";
+import MenuButton from "@reports/components/detail/MenuButton.json";
+import MenuDivider from "@reports/components/detail/MenuDivider.json";
+import MenuGroup from "@reports/components/detail/MenuGroup.json";
+import MenuItem from "@reports/components/detail/MenuItem.json";
+import Popover from "@reports/components/detail/Popover.json";
+import Portal from "@reports/components/detail/Portal.json";
+import PortalProvider from "@reports/components/detail/PortalProvider.json";
+import Radio from "@reports/components/detail/Radio.json";
+import Select from "@reports/components/detail/Select.json";
+import Skeleton from "@reports/components/detail/Skeleton.json";
+import Spinner from "@reports/components/detail/Spinner.json";
+import Stack from "@reports/components/detail/Stack.json";
+import Switch from "@reports/components/detail/Switch.json";
+import Tab from "@reports/components/detail/Tab.json";
+import TabList from "@reports/components/detail/TabList.json";
+import TabPanel from "@reports/components/detail/TabPanel.json";
+import Text from "@reports/components/detail/Text.json";
+import TextArea from "@reports/components/detail/TextArea.json";
+import TextInput from "@reports/components/detail/TextInput.json";
+import TextSkeleton from "@reports/components/detail/TextSkeleton.json";
+import ThemeColorProvider from "@reports/components/detail/ThemeColorProvider.json";
+import ThemeProvider from "@reports/components/detail/ThemeProvider.json";
+import Tooltip from "@reports/components/detail/Tooltip.json";
+import TooltipDelayGroupProvider from "@reports/components/detail/TooltipDelayGroupProvider.json";
 
 /**
  * Map of component name → full detail JSON (props, values, references).
@@ -118,19 +118,24 @@ export const componentDetails = {
 
 // ── Source analysis ────────────────────────────────────────────────────────────
 
-import sourcesReport from "@reports/ui-component-sources/ui-component-sources-report.json";
+import sourcesReport from "@reports/sources/report.json";
 
 // ── HTML tags ─────────────────────────────────────────────────────────────────
 
-import htmlTagsReport from "@reports/html-tags/html-tags-report.json";
+import htmlTagsReport from "@reports/html-tags/report.json";
 
 // ── Customizations ────────────────────────────────────────────────────────────
 
-import customizationsReport from "@reports/sanity-ui-customizations/sanity-ui-customizations-report.json";
+import customizationsReport from "@reports/customizations/report.json";
 
 // ── Re-exports ────────────────────────────────────────────────────────────────
 
-export { perComponentSummary, sourcesReport, htmlTagsReport, customizationsReport };
+export {
+  perComponentSummary,
+  sourcesReport,
+  htmlTagsReport,
+  customizationsReport,
+};
 
 /**
  * Look up a single component's detail by name.

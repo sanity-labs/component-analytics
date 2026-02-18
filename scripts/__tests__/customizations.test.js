@@ -11,58 +11,58 @@ const {
   generateTextReport,
   generateCSV,
   generateJSON,
-  SANITY_UI_COMPONENTS,
-} = require("../customizations/analyze-sanity-ui-customizations");
+  TRACKED_COMPONENTS,
+} = require("../customizations/analyze-customizations");
 
 // ---------------------------------------------------------------------------
-// SANITY_UI_COMPONENTS constant
+// TRACKED_COMPONENTS constant
 // ---------------------------------------------------------------------------
-describe("SANITY_UI_COMPONENTS", () => {
+describe("TRACKED_COMPONENTS", () => {
   test("is a non-empty array of strings", () => {
-    expect(Array.isArray(SANITY_UI_COMPONENTS)).toBe(true);
-    expect(SANITY_UI_COMPONENTS.length).toBeGreaterThan(0);
-    for (const comp of SANITY_UI_COMPONENTS) {
+    expect(Array.isArray(TRACKED_COMPONENTS)).toBe(true);
+    expect(TRACKED_COMPONENTS.length).toBeGreaterThan(0);
+    for (const comp of TRACKED_COMPONENTS) {
       expect(typeof comp).toBe("string");
     }
   });
 
   test("includes core layout components", () => {
-    expect(SANITY_UI_COMPONENTS).toContain("Box");
-    expect(SANITY_UI_COMPONENTS).toContain("Flex");
-    expect(SANITY_UI_COMPONENTS).toContain("Grid");
-    expect(SANITY_UI_COMPONENTS).toContain("Stack");
-    expect(SANITY_UI_COMPONENTS).toContain("Inline");
-    expect(SANITY_UI_COMPONENTS).toContain("Container");
+    expect(TRACKED_COMPONENTS).toContain("Box");
+    expect(TRACKED_COMPONENTS).toContain("Flex");
+    expect(TRACKED_COMPONENTS).toContain("Grid");
+    expect(TRACKED_COMPONENTS).toContain("Stack");
+    expect(TRACKED_COMPONENTS).toContain("Inline");
+    expect(TRACKED_COMPONENTS).toContain("Container");
   });
 
   test("includes interactive components", () => {
-    expect(SANITY_UI_COMPONENTS).toContain("Button");
-    expect(SANITY_UI_COMPONENTS).toContain("Card");
-    expect(SANITY_UI_COMPONENTS).toContain("Dialog");
-    expect(SANITY_UI_COMPONENTS).toContain("Menu");
-    expect(SANITY_UI_COMPONENTS).toContain("MenuItem");
-    expect(SANITY_UI_COMPONENTS).toContain("Popover");
-    expect(SANITY_UI_COMPONENTS).toContain("Tooltip");
+    expect(TRACKED_COMPONENTS).toContain("Button");
+    expect(TRACKED_COMPONENTS).toContain("Card");
+    expect(TRACKED_COMPONENTS).toContain("Dialog");
+    expect(TRACKED_COMPONENTS).toContain("Menu");
+    expect(TRACKED_COMPONENTS).toContain("MenuItem");
+    expect(TRACKED_COMPONENTS).toContain("Popover");
+    expect(TRACKED_COMPONENTS).toContain("Tooltip");
   });
 
   test("includes typography components", () => {
-    expect(SANITY_UI_COMPONENTS).toContain("Text");
-    expect(SANITY_UI_COMPONENTS).toContain("Heading");
-    expect(SANITY_UI_COMPONENTS).toContain("Code");
-    expect(SANITY_UI_COMPONENTS).toContain("Badge");
+    expect(TRACKED_COMPONENTS).toContain("Text");
+    expect(TRACKED_COMPONENTS).toContain("Heading");
+    expect(TRACKED_COMPONENTS).toContain("Code");
+    expect(TRACKED_COMPONENTS).toContain("Badge");
   });
 
   test("includes form components", () => {
-    expect(SANITY_UI_COMPONENTS).toContain("TextInput");
-    expect(SANITY_UI_COMPONENTS).toContain("TextArea");
-    expect(SANITY_UI_COMPONENTS).toContain("Checkbox");
-    expect(SANITY_UI_COMPONENTS).toContain("Select");
-    expect(SANITY_UI_COMPONENTS).toContain("Switch");
+    expect(TRACKED_COMPONENTS).toContain("TextInput");
+    expect(TRACKED_COMPONENTS).toContain("TextArea");
+    expect(TRACKED_COMPONENTS).toContain("Checkbox");
+    expect(TRACKED_COMPONENTS).toContain("Select");
+    expect(TRACKED_COMPONENTS).toContain("Switch");
   });
 
   test("has no duplicates", () => {
-    const unique = new Set(SANITY_UI_COMPONENTS);
-    expect(unique.size).toBe(SANITY_UI_COMPONENTS.length);
+    const unique = new Set(TRACKED_COMPONENTS);
+    expect(unique.size).toBe(TRACKED_COMPONENTS.length);
   });
 });
 
@@ -130,7 +130,7 @@ describe("extractStyleFromProps", () => {
 // extractInlineStyles
 // ---------------------------------------------------------------------------
 describe("extractInlineStyles", () => {
-  test("extracts inline style from a single-line Sanity UI component", () => {
+  test("extracts inline style from a single-line tracked UI library component", () => {
     const content = "<Card style={{padding: 4}}>content</Card>";
     const result = extractInlineStyles(content);
     expect(result.length).toBeGreaterThanOrEqual(1);
@@ -160,7 +160,7 @@ describe("extractInlineStyles", () => {
     expect(result.some((r) => r.component === "TextInput")).toBe(true);
   });
 
-  test("ignores non-Sanity UI components", () => {
+  test("ignores non-tracked UI library components", () => {
     const content =
       '<CustomComponent style={{color: "red"}}>text</CustomComponent>';
     const result = extractInlineStyles(content);
@@ -356,7 +356,7 @@ describe("extractStyledUsages", () => {
     expect(result[0].variableName).toBe("Root");
   });
 
-  test("ignores styled() wrapping non-Sanity UI components", () => {
+  test("ignores styled() wrapping non-tracked UI library components", () => {
     const content = `
       const StyledDiv = styled(MyCustomComponent)\`
         color: red;
@@ -677,7 +677,7 @@ describe("analyzeContent", () => {
     expect(cardStyled[0].properties).toContain("overflow");
   });
 
-  test("handles mixed Sanity UI and non-Sanity UI styles", () => {
+  test("handles mixed tracked UI library and non-tracked UI library styles", () => {
     const content = `
       <Card style={{padding: 4}}>content</Card>
       <div style={{color: "red"}}>html element</div>
@@ -1613,7 +1613,7 @@ describe("Edge cases", () => {
     expect(Array.isArray(result)).toBe(true);
   });
 
-  test("handles content with no Sanity UI components at all", () => {
+  test("handles content with no tracked UI library components at all", () => {
     const content = `
       import React from 'react'
 
@@ -1642,7 +1642,7 @@ describe("Edge cases", () => {
     expect(result.summary.componentsWithInlineStyles).toContain("Card");
   });
 
-  test("handles styled() wrapping less common Sanity UI components", () => {
+  test("handles styled() wrapping less common tracked UI library components", () => {
     const content = `
       const StyledBadge = styled(Badge)\`
         text-transform: uppercase;

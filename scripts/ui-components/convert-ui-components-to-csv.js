@@ -5,8 +5,8 @@ const path = require("path");
 const CODEBASES = ["sanity", "canvas", "huey"];
 
 function convertToCSV(codebase) {
-  const inputPath = `reports/${codebase}/ui-components/ui-components-report.json`;
-  const outputPath = `reports/${codebase}/ui-components/ui-components-usage-detailed.csv`;
+  const inputPath = `reports/${codebase}/wrappers/wrappers.json`;
+  const outputPath = `reports/${codebase}/wrappers/detailed.csv`;
 
   // Check if input file exists
   if (!fs.existsSync(inputPath)) {
