@@ -1,7 +1,7 @@
 {
   "name": "ui-component-analysis",
-  "version": "3.0.0",
-  "description": "Multi-codebase React component usage analysis for any UI component library",
+  "version": "0.1.0",
+  "description": "Track how your design system components are used",
   "scripts": {
     "analyze": "node scripts/run.js",
     "analyze:scan": "node scripts/run.js --step scan",
