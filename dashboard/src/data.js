@@ -4,121 +4,84 @@
  * Imports every report JSON via Vite's static JSON import support.
  * The @reports alias is configured in vite.config.js to point at ../reports.
  *
- * Each export is the parsed JSON object, ready for use in React components.
+ * Library names are derived from the sources report, which records the
+ * `libraryNames` array that was active when the analysis ran.  This
+ * keeps the dashboard in sync with whatever libraries the user
+ * configured — no build-time injection needed.
+ *
+ * Component detail files are discovered automatically with import.meta.glob
+ * so no manual import list is needed when tracked components change.
  */
+
+// ── Source analysis (loaded first — library names live here) ──────────────────
+
+import sourcesReport from "@reports/sources/report.json";
+
+// ── Library names (derived from the report) ───────────────────────────────────
+
+/**
+ * Ordered list of tracked UI library names exactly as they appeared in
+ * the project configuration when the analysis was run.
+ *
+ * @type {string[]}
+ */
+export const libraryNames = sourcesReport.libraryNames || [];
+
+/**
+ * Human-readable label covering ALL tracked UI libraries.
+ *
+ * When a single library is configured this is just its name
+ * (e.g. `"Sanity UI"`).  When multiple libraries are configured the
+ * names are joined with " & " (e.g. `"Sanity UI & Sanity Icons"`).
+ *
+ * Falls back to `"Tracked Library"` if the report has no library names.
+ *
+ * @type {string}
+ */
+export const LIBRARY_NAME =
+  libraryNames.length > 0 ? libraryNames.join(" & ") : "Tracked Library";
+
+/**
+ * The name of the first (primary) UI library.
+ *
+ * Useful for short labels where the full combined name would be too
+ * long (e.g. column headers, badges).
+ *
+ * @type {string}
+ */
+export const PRIMARY_LIBRARY_NAME = libraryNames[0] || "Tracked Library";
 
 // ── Per-component reports ─────────────────────────────────────────────────────
 
 import perComponentSummary from "@reports/components/summary.json";
 
-// Individual component detail files
-import Autocomplete from "@reports/components/detail/Autocomplete.json";
-import Avatar from "@reports/components/detail/Avatar.json";
-import AvatarCounter from "@reports/components/detail/AvatarCounter.json";
-import AvatarStack from "@reports/components/detail/AvatarStack.json";
-import Badge from "@reports/components/detail/Badge.json";
-import BoundaryElementProvider from "@reports/components/detail/BoundaryElementProvider.json";
-import Box from "@reports/components/detail/Box.json";
-import Button from "@reports/components/detail/Button.json";
-import Card from "@reports/components/detail/Card.json";
-import Checkbox from "@reports/components/detail/Checkbox.json";
-import Code from "@reports/components/detail/Code.json";
-import Container from "@reports/components/detail/Container.json";
-import Dialog from "@reports/components/detail/Dialog.json";
-import ErrorBoundary from "@reports/components/detail/ErrorBoundary.json";
-import Flex from "@reports/components/detail/Flex.json";
-import Grid from "@reports/components/detail/Grid.json";
-import Heading from "@reports/components/detail/Heading.json";
-import Inline from "@reports/components/detail/Inline.json";
-import KBD from "@reports/components/detail/KBD.json";
-import Label from "@reports/components/detail/Label.json";
-import Layer from "@reports/components/detail/Layer.json";
-import LayerProvider from "@reports/components/detail/LayerProvider.json";
-import Menu from "@reports/components/detail/Menu.json";
-import MenuButton from "@reports/components/detail/MenuButton.json";
-import MenuDivider from "@reports/components/detail/MenuDivider.json";
-import MenuGroup from "@reports/components/detail/MenuGroup.json";
-import MenuItem from "@reports/components/detail/MenuItem.json";
-import Popover from "@reports/components/detail/Popover.json";
-import Portal from "@reports/components/detail/Portal.json";
-import PortalProvider from "@reports/components/detail/PortalProvider.json";
-import Radio from "@reports/components/detail/Radio.json";
-import Select from "@reports/components/detail/Select.json";
-import Skeleton from "@reports/components/detail/Skeleton.json";
-import Spinner from "@reports/components/detail/Spinner.json";
-import Stack from "@reports/components/detail/Stack.json";
-import Switch from "@reports/components/detail/Switch.json";
-import Tab from "@reports/components/detail/Tab.json";
-import TabList from "@reports/components/detail/TabList.json";
-import TabPanel from "@reports/components/detail/TabPanel.json";
-import Text from "@reports/components/detail/Text.json";
-import TextArea from "@reports/components/detail/TextArea.json";
-import TextInput from "@reports/components/detail/TextInput.json";
-import TextSkeleton from "@reports/components/detail/TextSkeleton.json";
-import ThemeColorProvider from "@reports/components/detail/ThemeColorProvider.json";
-import ThemeProvider from "@reports/components/detail/ThemeProvider.json";
-import Tooltip from "@reports/components/detail/Tooltip.json";
-import TooltipDelayGroupProvider from "@reports/components/detail/TooltipDelayGroupProvider.json";
+/**
+ * Eagerly import every component detail JSON in the reports directory.
+ *
+ * Vite resolves these at build time so no manual import list is required.
+ * When a new component appears in the reports after a re-analysis the
+ * dashboard picks it up automatically on the next build.
+ *
+ * @type {Record<string, { default: object }>}
+ */
+const detailModules = import.meta.glob("@reports/components/detail/*.json", {
+  eager: true,
+});
 
 /**
  * Map of component name → full detail JSON (props, values, references).
  * Only includes components that had at least one import or instance.
  *
- * @type {Object<string, object>}
+ * @type {Record<string, object>}
  */
-export const componentDetails = {
-  Autocomplete,
-  Avatar,
-  AvatarCounter,
-  AvatarStack,
-  Badge,
-  BoundaryElementProvider,
-  Box,
-  Button,
-  Card,
-  Checkbox,
-  Code,
-  Container,
-  Dialog,
-  ErrorBoundary,
-  Flex,
-  Grid,
-  Heading,
-  Inline,
-  KBD,
-  Label,
-  Layer,
-  LayerProvider,
-  Menu,
-  MenuButton,
-  MenuDivider,
-  MenuGroup,
-  MenuItem,
-  Popover,
-  Portal,
-  PortalProvider,
-  Radio,
-  Select,
-  Skeleton,
-  Spinner,
-  Stack,
-  Switch,
-  Tab,
-  TabList,
-  TabPanel,
-  Text,
-  TextArea,
-  TextInput,
-  TextSkeleton,
-  ThemeColorProvider,
-  ThemeProvider,
-  Tooltip,
-  TooltipDelayGroupProvider,
-};
+export const componentDetails = {};
 
-// ── Source analysis ────────────────────────────────────────────────────────────
-
-import sourcesReport from "@reports/sources/report.json";
+for (const [path, mod] of Object.entries(detailModules)) {
+  const match = path.match(/\/([^/]+)\.json$/);
+  if (match) {
+    componentDetails[match[1]] = mod.default ?? mod;
+  }
+}
 
 // ── HTML tags ─────────────────────────────────────────────────────────────────
 
@@ -136,6 +99,8 @@ export {
   htmlTagsReport,
   customizationsReport,
 };
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 /**
  * Look up a single component's detail by name.

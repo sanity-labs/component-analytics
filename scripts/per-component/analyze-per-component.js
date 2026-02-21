@@ -34,6 +34,7 @@ const {
   TRACKED_COMPONENTS,
   UI_LIBRARY_NAMES,
   isTrackedUISource,
+  identifyComponentLibrary,
 } = require("../lib/constants");
 const {
   detectPropDefault,
@@ -464,6 +465,7 @@ function escapeRegex(s) {
 function createEmptyReport(component) {
   return {
     component,
+    library: identifyComponentLibrary(component) || null,
     totalImports: 0,
     totalInstances: 0,
     props: {},
@@ -622,6 +624,7 @@ function buildComponentJson(report) {
 
   return {
     component: report.component,
+    library: report.library,
     totalImports: report.totalImports,
     totalInstances: report.totalInstances,
     codebaseImports: report.codebaseImports,
@@ -736,6 +739,7 @@ function generateSummaryJSON(reports) {
 
     return {
       component: r.component,
+      library: r.library,
       totalImports: r.totalImports,
       totalInstances: r.totalInstances,
       codebaseImports: r.codebaseImports,

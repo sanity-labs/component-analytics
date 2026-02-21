@@ -2,7 +2,7 @@ import { Card, Grid, Heading, Stack, Text, Badge, Flex } from "@sanity/ui";
 import { StatCard } from "../components/StatCard.jsx";
 import { DataTable } from "../components/DataTable.jsx";
 import { LabelledBar, BarChart } from "../components/Bar.jsx";
-import { customizationsReport } from "../data.js";
+import { customizationsReport, PRIMARY_LIBRARY_NAME } from "../data.js";
 
 /**
  * Compute a percentage safely.
@@ -16,8 +16,8 @@ function pct(n, d) {
 }
 
 /**
- * Customizations page — visualises how often Sanity UI components receive
- * inline `style` props or are wrapped with `styled()`.
+ * Customizations page — visualises how often tracked-library components
+ * receive inline `style` props or are wrapped with `styled()`.
  *
  * Shows:
  *   1. Key stat cards (total inline, styled, grand total)
@@ -55,7 +55,9 @@ export function Customizations({ onNavigate }) {
 
     // Aggregate inline by component
     if (data.inlineStylesByComponent) {
-      for (const [comp, count] of Object.entries(data.inlineStylesByComponent)) {
+      for (const [comp, count] of Object.entries(
+        data.inlineStylesByComponent,
+      )) {
         allInlineByComp[comp] = (allInlineByComp[comp] || 0) + count;
       }
     }
@@ -70,14 +72,16 @@ export function Customizations({ onNavigate }) {
     // Aggregate inline CSS properties
     if (data.topInlineProperties) {
       for (const item of data.topInlineProperties) {
-        allInlineProps[item.property] = (allInlineProps[item.property] || 0) + item.count;
+        allInlineProps[item.property] =
+          (allInlineProps[item.property] || 0) + item.count;
       }
     }
 
     // Aggregate styled CSS properties
     if (data.topStyledProperties) {
       for (const item of data.topStyledProperties) {
-        allStyledProps[item.property] = (allStyledProps[item.property] || 0) + item.count;
+        allStyledProps[item.property] =
+          (allStyledProps[item.property] || 0) + item.count;
       }
     }
   }
@@ -140,7 +144,8 @@ export function Customizations({ onNavigate }) {
     total: data.totalCustomizations || 0,
     inlinePct:
       data.totalCustomizations > 0
-        ? pct(data.inlineStyleCount || 0, data.totalCustomizations).toFixed(1) + "%"
+        ? pct(data.inlineStyleCount || 0, data.totalCustomizations).toFixed(1) +
+          "%"
         : "0.0%",
   }));
 
@@ -169,9 +174,9 @@ export function Customizations({ onNavigate }) {
     <Stack space={5}>
       {/* ── Title ──────────────────────────────────────────────────── */}
       <Stack space={3}>
-        <Heading size={3}>Sanity UI Customizations</Heading>
+        <Heading size={3}>{PRIMARY_LIBRARY_NAME} Customizations</Heading>
         <Text size={1} muted>
-          Measures how often Sanity UI components receive inline{" "}
+          Measures how often {PRIMARY_LIBRARY_NAME} components receive inline{" "}
           <code>style</code> props or are wrapped with <code>styled()</code>.
           {customizationsReport.generatedAt &&
             ` · Generated ${new Date(customizationsReport.generatedAt).toLocaleDateString()}`}
@@ -344,7 +349,10 @@ export function Customizations({ onNavigate }) {
                   <Text
                     size={1}
                     weight="bold"
-                    style={{ color: "var(--card-focus-ring-color)", cursor: "pointer" }}
+                    style={{
+                      color: "var(--card-focus-ring-color)",
+                      cursor: "pointer",
+                    }}
                   >
                     {val}
                   </Text>

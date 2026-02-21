@@ -6,7 +6,6 @@ import { ComponentDetail } from "./pages/ComponentDetail.jsx";
 import { Sources } from "./pages/Sources.jsx";
 import { HtmlTags } from "./pages/HtmlTags.jsx";
 import { Customizations } from "./pages/Customizations.jsx";
-import { Icons } from "./pages/Icons.jsx";
 
 /**
  * Parse the current hash into a page key.
@@ -75,10 +74,7 @@ export function App() {
     if (page.startsWith("component/")) {
       const componentName = page.slice("component/".length);
       return (
-        <ComponentDetail
-          componentName={componentName}
-          onNavigate={navigate}
-        />
+        <ComponentDetail componentName={componentName} onNavigate={navigate} />
       );
     }
 
@@ -98,9 +94,6 @@ export function App() {
 
       case "customizations":
         return <Customizations onNavigate={navigate} />;
-
-      case "icons":
-        return <Icons />;
 
       default:
         return <Overview onNavigate={navigate} />;

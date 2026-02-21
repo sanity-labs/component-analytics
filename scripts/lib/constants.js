@@ -268,6 +268,62 @@ function isTrackedUISource(source) {
   return !excluded;
 }
 
+/**
+ * Map of library name → `Set` of component names belonging to that library.
+ *
+ * Used by {@link identifyComponentLibrary} to resolve a PascalCase
+ * component name back to the library it was declared in.
+ *
+ * @type {Map<string, Set<string>>}
+ */
+const LIBRARY_COMPONENT_MAP = new Map();
+for (const lib of ALL_UI_LIBRARIES) {
+  LIBRARY_COMPONENT_MAP.set(lib.name, new Set(lib.components));
+}
+
+/**
+ * Identify which specific tracked UI library an import source belongs to.
+ *
+ * Unlike {@link isTrackedUISource} (which returns a boolean), this
+ * returns the **name** of the matching library so callers can
+ * attribute usage to individual libraries rather than a single
+ * "tracked UI" bucket.
+ *
+ * Libraries are checked in config order.  Exclusion rules are
+ * respected — if a source matches an `excludeSources` entry it is
+ * skipped even if it also matches `importSources`.
+ *
+ * @param {string} source - The import path (e.g. `"@sanity/ui"`).
+ * @returns {string | null} The library name, or `null` if the source
+ *   does not belong to any tracked library.
+ */
+function identifyLibrary(source) {
+  for (const lib of ALL_UI_LIBRARIES) {
+    const excluded = lib.excludeSources.some((s) => source.includes(s));
+    if (excluded) continue;
+    const matches = lib.importSources.some((s) => source.includes(s));
+    if (matches) return lib.name;
+  }
+  return null;
+}
+
+/**
+ * Identify which tracked UI library a component name belongs to.
+ *
+ * Looks up the name in {@link LIBRARY_COMPONENT_MAP}.  If the
+ * component appears in more than one library (unlikely but possible),
+ * the first match in config order wins.
+ *
+ * @param {string} componentName - PascalCase component name (e.g. `"Button"`).
+ * @returns {string | null} The library name, or `null`.
+ */
+function identifyComponentLibrary(componentName) {
+  for (const [libName, comps] of LIBRARY_COMPONENT_MAP) {
+    if (comps.has(componentName)) return libName;
+  }
+  return null;
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // DERIVED: OTHER UI PATTERNS (for the sources report)
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -521,6 +577,9 @@ module.exports = {
   UI_IMPORT_SOURCES,
   UI_EXCLUDE_SOURCES,
   isTrackedUISource,
+  LIBRARY_COMPONENT_MAP,
+  identifyLibrary,
+  identifyComponentLibrary,
 
   // Other UI classification
   OTHER_UI_PATTERNS,
