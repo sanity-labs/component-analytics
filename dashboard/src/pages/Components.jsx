@@ -1,9 +1,9 @@
 import { Heading, Stack, Text, Badge, Flex, Card } from "@sanity/ui";
 import { DataTable } from "../components/DataTable.jsx";
-import { perComponentSummary } from "../data.js";
+import { perComponentSummary, libraryNames, LIBRARY_NAME } from "../data.js";
 
 /**
- * Components page — full sortable table of every Sanity UI component.
+ * Components page — full sortable table of every tracked-library component.
  *
  * Columns:
  *   - Component name (clickable → detail page)
@@ -30,6 +30,7 @@ export function Components({ onNavigate }) {
     return {
       _key: c.component,
       component: c.component,
+      library: c.library || null,
       instances: c.totalInstances,
       imports: c.totalImports,
       uniqueProps: c.uniqueProps,
@@ -47,6 +48,8 @@ export function Components({ onNavigate }) {
   const totalImports = perComponentSummary.totalImports || 0;
   const totalComponents = perComponentSummary.totalComponents || 0;
 
+  const showLibraryColumn = libraryNames.length > 1;
+
   const columns = [
     {
       key: "component",
@@ -62,6 +65,25 @@ export function Components({ onNavigate }) {
         </Text>
       ),
     },
+    ...(showLibraryColumn
+      ? [
+          {
+            key: "library",
+            label: "Library",
+            flex: 2,
+            render: (val) =>
+              val ? (
+                <Badge tone="primary" size={0}>
+                  {val}
+                </Badge>
+              ) : (
+                <Text size={0} muted>
+                  —
+                </Text>
+              ),
+          },
+        ]
+      : []),
     { key: "instances", label: "Instances", numeric: true, flex: 2 },
     { key: "imports", label: "Imports", numeric: true, flex: 2 },
     { key: "uniqueProps", label: "Props", numeric: true },
@@ -99,7 +121,7 @@ export function Components({ onNavigate }) {
     <Stack space={5}>
       {/* ── Header ──────────────────────────────────────────────────── */}
       <Stack space={3}>
-        <Heading size={3}>Sanity UI Components</Heading>
+        <Heading size={3}>{LIBRARY_NAME} Components</Heading>
         <Text size={1} muted>
           {totalComponents} components · {totalInstances.toLocaleString()} JSX
           instances · {totalImports.toLocaleString()} file imports

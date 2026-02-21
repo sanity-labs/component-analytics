@@ -866,6 +866,7 @@ describe("createEmptyReport", () => {
     const report = createEmptyReport("Button");
     expect(report).toEqual({
       component: "Button",
+      library: "Sanity UI",
       totalImports: 0,
       totalInstances: 0,
       props: {},

@@ -1,8 +1,8 @@
-import { Card, Grid, Heading, Stack, Text, Badge, Flex } from "@sanity/ui";
+import { Card, Grid, Heading, Stack, Text, Badge, Flex, Box } from "@sanity/ui";
 import { StatCard } from "../components/StatCard.jsx";
 import { DataTable } from "../components/DataTable.jsx";
-import { BarChart, LabelledBar } from "../components/Bar.jsx";
-import { sourcesReport } from "../data.js";
+import { BarChart, LabelledBar, TONE_COLORS } from "../components/Bar.jsx";
+import { sourcesReport, libraryNames, LIBRARY_NAME } from "../data.js";
 
 /**
  * Compute a percentage safely.
@@ -16,15 +16,42 @@ function pct(n, d) {
 }
 
 /**
+ * Assign a tone to each library by index so colours are stable.
+ *
+ * @type {string[]}
+ */
+const LIBRARY_TONES = ["primary", "positive", "purple", "cyan", "magenta"];
+
+/**
+ * Return a tone for the given library index.
+ *
+ * @param {number} idx
+ * @returns {string}
+ */
+function libTone(idx) {
+  return LIBRARY_TONES[idx % LIBRARY_TONES.length];
+}
+
+/**
+ * Return the CSS colour for a library tone.
+ *
+ * @param {number} idx
+ * @returns {string}
+ */
+function libColor(idx) {
+  return TONE_COLORS[libTone(idx)] || TONE_COLORS.default;
+}
+
+/**
  * Sources page — visualises the UI Component Sources report.
  *
  * Shows:
- *   1. Key stat cards (total instances, Sanity UI %, adoption %)
- *   2. Source distribution bar chart
+ *   1. Key stat cards (total instances, per-library instances, adoption %)
+ *   2. Source distribution bar chart (one segment per library + internal + HTML + other)
  *   3. Per-codebase summary table
  *   4. Per-codebase distribution bars
- *   5. Top Sanity UI components across all codebases
- *   6. Internal component Sanity UI adoption metrics
+ *   5. Top components for each library
+ *   6. Internal component adoption metrics per library
  *
  * @param {object} props
  * @param {(page: string) => void} props.onNavigate - Navigate callback.
@@ -32,80 +59,90 @@ function pct(n, d) {
 export function Sources({ onNavigate }) {
   const totals = sourcesReport.totals || {};
   const codebases = sourcesReport.codebases || {};
-  const topComponents = sourcesReport.topSanityUIComponents || [];
+  const topByLibrary = sourcesReport.topComponentsByLibrary || {};
 
   const totalInstances = totals.totalInstances || 0;
-  const sanityUI = totals.sanityUIInstances || 0;
+  const totalLibrary = totals.totalLibraryInstances || 0;
+  const libInstances = totals.libraryInstances || {};
   const internal = totals.internalInstances || 0;
   const html = totals.nativeHTMLInstances || 0;
   const otherUI = totals.otherUIInstances || 0;
   const files = totals.files || 0;
-  const sanityPct = pct(sanityUI, totalInstances);
+
+  const totalLibraryPct = pct(totalLibrary, totalInstances);
   const internalPct = pct(internal, totalInstances);
   const htmlPct = pct(html, totalInstances);
   const otherPct = pct(otherUI, totalInstances);
 
   const filesWithInternal = totals.filesWithInternal || 0;
-  const filesWithInternalUsingSanityUI = totals.filesWithInternalUsingSanityUI || 0;
-  const adoptionPct = pct(filesWithInternalUsingSanityUI, filesWithInternal);
+  const filesWithInternalUsingAny =
+    totals.filesWithInternalUsingAnyLibrary || 0;
+  const overallAdoptionPct = pct(filesWithInternalUsingAny, filesWithInternal);
 
-  // ── Codebase summary rows ───────────────────────────────────────────────
+  // ── Per-library percentage of totalInstances ────────────────────────
+  const libPcts = libraryNames.map((name) => ({
+    name,
+    instances: libInstances[name] || 0,
+    pct: pct(libInstances[name] || 0, totalInstances),
+  }));
 
+  // ── Codebase summary rows ─────────────────────────────────────────
   const codebaseRows = Object.entries(codebases).map(([name, data]) => {
-    const sui = data.sanityUI ? data.sanityUI.instances : 0;
-    const int = data.internal ? data.internal.instances : 0;
-    const htm = data.nativeHTML ? data.nativeHTML.instances : 0;
-    const oth = data.otherUI ? data.otherUI.instances : 0;
-    const tot = data.total ? data.total.instances : 0;
-
-    return {
+    const row = {
       _key: name,
       codebase: name,
       files: data.fileCount || 0,
-      sanityUI: sui,
-      internal: int,
-      html: htm,
-      otherUI: oth,
-      total: tot,
-      sanityPct: pct(sui, tot).toFixed(1) + "%",
+      internal: data.internal ? data.internal.instances : 0,
+      html: data.nativeHTML ? data.nativeHTML.instances : 0,
+      otherUI: data.otherUI ? data.otherUI.instances : 0,
+      total: data.total ? data.total.instances : 0,
     };
+    let libTotal = 0;
+    for (const libName of libraryNames) {
+      const count = data.libraries?.[libName]?.instances || 0;
+      row[`lib_${libName}`] = count;
+      libTotal += count;
+    }
+    row.libTotal = libTotal;
+    row.libPct =
+      row.total > 0 ? ((libTotal / row.total) * 100).toFixed(1) + "%" : "0.0%";
+    return row;
   });
 
-  // ── Per-codebase detail rows for the distribution section ──────────────
+  // ── Per-codebase distribution data ────────────────────────────────
+  const codebaseDistributions = Object.entries(codebases).map(
+    ([name, data]) => {
+      const libs = {};
+      for (const libName of libraryNames) {
+        libs[libName] = data.libraries?.[libName]?.instances || 0;
+      }
+      return {
+        name,
+        libs,
+        internal: data.internal ? data.internal.instances : 0,
+        html: data.nativeHTML ? data.nativeHTML.instances : 0,
+        otherUI: data.otherUI ? data.otherUI.instances : 0,
+        total: data.total ? data.total.instances : 0,
+      };
+    },
+  );
 
-  const codebaseDistributions = Object.entries(codebases).map(([name, data]) => {
-    const sui = data.sanityUI ? data.sanityUI.instances : 0;
-    const int = data.internal ? data.internal.instances : 0;
-    const htm = data.nativeHTML ? data.nativeHTML.instances : 0;
-    const oth = data.otherUI ? data.otherUI.instances : 0;
-    const tot = data.total ? data.total.instances : 0;
-
-    return { name, sanityUI: sui, internal: int, html: htm, otherUI: oth, total: tot };
-  });
-
-  // ── Top Sanity UI component rows ──────────────────────────────────────
-
-  const topComponentRows = topComponents.map((c) => ({
-    _key: c.name,
-    component: c.name,
-    instances: c.instances,
-  }));
-
-  // ── Internal adoption rows ────────────────────────────────────────────
-
+  // ── Adoption rows (per library) ───────────────────────────────────
   const adoptionRows = Object.entries(codebases).map(([name, data]) => {
-    const adoption = data.internalSanityUIAdoption || {};
-    const fwi = adoption.filesWithInternal || 0;
-    const fus = adoption.filesUsingSanityUI || 0;
-    const ap = adoption.adoptionPercent || 0;
-
-    return {
+    const row = {
       _key: name,
       codebase: name,
-      filesWithInternal: fwi,
-      filesUsingSanityUI: fus,
-      adoptionPct: ap.toFixed(1) + "%",
+      filesWithInternal: data.internalAdoption
+        ? Object.values(data.internalAdoption)[0]?.filesWithInternal || 0
+        : 0,
     };
+    for (const libName of libraryNames) {
+      const adoption = data.internalAdoption?.[libName] || {};
+      row[`adopt_${libName}`] = adoption.filesUsingLibrary || 0;
+      row[`adoptPct_${libName}`] =
+        (adoption.adoptionPercent || 0).toFixed(1) + "%";
+    }
+    return row;
   });
 
   return (
@@ -114,8 +151,8 @@ export function Sources({ onNavigate }) {
       <Stack space={3}>
         <Heading size={3}>UI Component Sources</Heading>
         <Text size={1} muted>
-          Classifies every JSX element as Sanity UI, internal, native HTML, or other UI library.
-          All numbers are JSX instances, not imports.
+          Classifies every JSX element by library, internal, native HTML, or
+          other UI. All numbers are JSX instances, not imports.
           {sourcesReport.generatedAt &&
             ` · Generated ${new Date(sourcesReport.generatedAt).toLocaleDateString()}`}
         </Text>
@@ -129,12 +166,15 @@ export function Sources({ onNavigate }) {
           tone="primary"
           detail={`Across ${files.toLocaleString()} files`}
         />
-        <StatCard
-          label="Sanity UI Adoption"
-          value={sanityPct.toFixed(1) + "%"}
-          tone="positive"
-          detail={`${sanityUI.toLocaleString()} instances`}
-        />
+        {libPcts.map((lib, idx) => (
+          <StatCard
+            key={lib.name}
+            label={`${lib.name}`}
+            value={lib.instances}
+            tone={libTone(idx)}
+            detail={`${lib.pct.toFixed(1)}% of all JSX`}
+          />
+        ))}
         <StatCard
           label="Native HTML Tags"
           value={html}
@@ -143,8 +183,8 @@ export function Sources({ onNavigate }) {
         />
         <StatCard
           label="Internal Adoption"
-          value={adoptionPct.toFixed(1) + "%"}
-          detail={`${filesWithInternalUsingSanityUI} of ${filesWithInternal} files`}
+          value={overallAdoptionPct.toFixed(1) + "%"}
+          detail={`${filesWithInternalUsingAny} of ${filesWithInternal} files`}
         />
       </Grid>
 
@@ -155,35 +195,82 @@ export function Sources({ onNavigate }) {
           <BarChart
             height={28}
             segments={[
-              { label: `Sanity UI (${sanityPct.toFixed(1)}%)`, percent: sanityPct, tone: "primary" },
-              { label: `Internal (${internalPct.toFixed(1)}%)`, percent: internalPct, tone: "caution" },
-              { label: `HTML Tags (${htmlPct.toFixed(1)}%)`, percent: htmlPct, tone: "critical" },
-              { label: `Other UI (${otherPct.toFixed(1)}%)`, percent: otherPct, tone: "default" },
+              ...libPcts.map((lib, idx) => ({
+                label: `${lib.name} (${lib.pct.toFixed(1)}%)`,
+                percent: lib.pct,
+                tone: libTone(idx),
+              })),
+              {
+                label: `Internal (${internalPct.toFixed(1)}%)`,
+                percent: internalPct,
+                tone: "caution",
+              },
+              {
+                label: `HTML Tags (${htmlPct.toFixed(1)}%)`,
+                percent: htmlPct,
+                tone: "critical",
+              },
+              {
+                label: `Other UI (${otherPct.toFixed(1)}%)`,
+                percent: otherPct,
+                tone: "default",
+              },
             ]}
           />
 
           <Grid columns={[2, 4]} gap={3}>
-            {[
-              { label: "Sanity UI", value: sanityUI, color: "#2276fc" },
-              { label: "Internal", value: internal, color: "#f3c948" },
-              { label: "HTML Tags", value: html, color: "#f76d6a" },
-              { label: "Other UI", value: otherUI, color: "#8690a0" },
-            ].map((item) => (
-              <Flex key={item.label} gap={2} align="center">
+            {libPcts.map((lib, idx) => (
+              <Flex key={lib.name} gap={2} align="center">
                 <div
                   style={{
                     width: 12,
                     height: 12,
                     borderRadius: 2,
-                    backgroundColor: item.color,
+                    backgroundColor: libColor(idx),
                     flexShrink: 0,
                   }}
                 />
                 <Text size={1}>
-                  {item.label} — {item.value.toLocaleString()}
+                  {lib.name} — {lib.instances.toLocaleString()}
                 </Text>
               </Flex>
             ))}
+            <Flex gap={2} align="center">
+              <div
+                style={{
+                  width: 12,
+                  height: 12,
+                  borderRadius: 2,
+                  backgroundColor: TONE_COLORS.caution,
+                  flexShrink: 0,
+                }}
+              />
+              <Text size={1}>Internal — {internal.toLocaleString()}</Text>
+            </Flex>
+            <Flex gap={2} align="center">
+              <div
+                style={{
+                  width: 12,
+                  height: 12,
+                  borderRadius: 2,
+                  backgroundColor: TONE_COLORS.critical,
+                  flexShrink: 0,
+                }}
+              />
+              <Text size={1}>HTML Tags — {html.toLocaleString()}</Text>
+            </Flex>
+            <Flex gap={2} align="center">
+              <div
+                style={{
+                  width: 12,
+                  height: 12,
+                  borderRadius: 2,
+                  backgroundColor: TONE_COLORS.default,
+                  flexShrink: 0,
+                }}
+              />
+              <Text size={1}>Other UI — {otherUI.toLocaleString()}</Text>
+            </Flex>
           </Grid>
         </Stack>
       </Card>
@@ -205,14 +292,18 @@ export function Sources({ onNavigate }) {
                 ),
               },
               { key: "files", label: "Files", numeric: true },
-              { key: "sanityUI", label: "Sanity UI", numeric: true },
+              ...libraryNames.map((libName) => ({
+                key: `lib_${libName}`,
+                label: libName,
+                numeric: true,
+              })),
               { key: "internal", label: "Internal", numeric: true },
               { key: "html", label: "HTML Tags", numeric: true },
               { key: "otherUI", label: "Other UI", numeric: true },
               { key: "total", label: "Total", numeric: true },
               {
-                key: "sanityPct",
-                label: "% Sanity UI",
+                key: "libPct",
+                label: `% ${LIBRARY_NAME}`,
                 numeric: true,
                 flex: 2,
                 render: (val) => (
@@ -245,11 +336,11 @@ export function Sources({ onNavigate }) {
               <BarChart
                 height={20}
                 segments={[
-                  {
-                    label: `Sanity UI (${pct(cb.sanityUI, cb.total).toFixed(1)}%)`,
-                    percent: pct(cb.sanityUI, cb.total),
-                    tone: "primary",
-                  },
+                  ...libraryNames.map((libName, idx) => ({
+                    label: `${libName} (${pct(cb.libs[libName] || 0, cb.total).toFixed(1)}%)`,
+                    percent: pct(cb.libs[libName] || 0, cb.total),
+                    tone: libTone(idx),
+                  })),
                   {
                     label: `Internal (${pct(cb.internal, cb.total).toFixed(1)}%)`,
                     percent: pct(cb.internal, cb.total),
@@ -272,50 +363,88 @@ export function Sources({ onNavigate }) {
         </Stack>
       </Card>
 
-      {/* ── Top Sanity UI components ──────────────────────────────── */}
+      {/* ── Top components per library ─────────────────────────────── */}
+      {libraryNames.map((libName, idx) => {
+        const topComponents = topByLibrary[libName] || [];
+        if (topComponents.length === 0) return null;
+
+        const topRows = topComponents.map((c) => ({
+          _key: c.name,
+          component: c.name,
+          instances: c.instances,
+        }));
+
+        return (
+          <Card key={libName} padding={4} radius={2} shadow={1}>
+            <Stack space={4}>
+              <Flex gap={3} align="center">
+                <Heading size={1}>Top {libName} Components</Heading>
+                <Badge tone={libTone(idx)} size={0}>
+                  {(libInstances[libName] || 0).toLocaleString()} instances
+                </Badge>
+              </Flex>
+              <Text size={1} muted>
+                Click a row to view the full component detail.
+              </Text>
+              <DataTable
+                columns={[
+                  {
+                    key: "component",
+                    label: "Component",
+                    flex: 3,
+                    render: (val) => (
+                      <Text
+                        size={1}
+                        weight="bold"
+                        style={{ color: "var(--card-focus-ring-color)" }}
+                      >
+                        {val}
+                      </Text>
+                    ),
+                  },
+                  {
+                    key: "instances",
+                    label: "Instances",
+                    numeric: true,
+                    flex: 2,
+                  },
+                ]}
+                rows={topRows}
+                defaultSortKey="instances"
+                onRowClick={(row) => onNavigate(`component/${row.component}`)}
+              />
+            </Stack>
+          </Card>
+        );
+      })}
+
+      {/* ── Internal component adoption per library ────────────────── */}
       <Card padding={4} radius={2} shadow={1}>
         <Stack space={4}>
-          <Heading size={1}>Top Sanity UI Components (All Codebases)</Heading>
+          <Heading size={1}>Internal Component Library Adoption</Heading>
           <Text size={1} muted>
-            Click a row to view the full component detail.
-          </Text>
-          <DataTable
-            columns={[
-              {
-                key: "component",
-                label: "Component",
-                flex: 3,
-                render: (val) => (
-                  <Text size={1} weight="bold" style={{ color: "var(--card-focus-ring-color)" }}>
-                    {val}
-                  </Text>
-                ),
-              },
-              { key: "instances", label: "Instances", numeric: true, flex: 2 },
-            ]}
-            rows={topComponentRows}
-            defaultSortKey="instances"
-            onRowClick={(row) => onNavigate(`component/${row.component}`)}
-          />
-        </Stack>
-      </Card>
-
-      {/* ── Internal component Sanity UI adoption ─────────────────── */}
-      <Card padding={4} radius={2} shadow={1}>
-        <Stack space={4}>
-          <Heading size={1}>Internal Component Sanity UI Adoption</Heading>
-          <Text size={1} muted>
-            What percentage of files with internal/local component imports also use Sanity UI
-            components, indicating Sanity UI adoption in custom code.
+            What percentage of files with internal/local component imports also
+            use each tracked library, indicating library adoption in custom
+            code.
           </Text>
 
-          {/* Aggregate adoption bar */}
-          <LabelledBar
-            label="All codebases"
-            percent={adoptionPct}
-            tone="primary"
-            count={`${filesWithInternalUsingSanityUI} / ${filesWithInternal}`}
-          />
+          {/* Aggregate adoption bars per library */}
+          <Stack space={2}>
+            {libraryNames.map((libName, idx) => {
+              const adoption = totals.internalAdoption?.[libName] || {};
+              const filesUsing = adoption.filesUsingLibrary || 0;
+              const adoptPct = pct(filesUsing, filesWithInternal);
+              return (
+                <LabelledBar
+                  key={libName}
+                  label={libName}
+                  percent={adoptPct}
+                  tone={libTone(idx)}
+                  count={`${filesUsing} / ${filesWithInternal}`}
+                />
+              );
+            })}
+          </Stack>
 
           {/* Per-codebase adoption table */}
           <DataTable
@@ -330,19 +459,31 @@ export function Sources({ onNavigate }) {
                   </Text>
                 ),
               },
-              { key: "filesWithInternal", label: "Files w/ Internal", numeric: true, flex: 2 },
-              { key: "filesUsingSanityUI", label: "Also Using Sanity UI", numeric: true, flex: 2 },
               {
-                key: "adoptionPct",
-                label: "Adoption %",
+                key: "filesWithInternal",
+                label: "Files w/ Internal",
                 numeric: true,
                 flex: 2,
-                render: (val) => (
-                  <Badge tone="positive" size={0}>
-                    {val}
-                  </Badge>
-                ),
               },
+              ...libraryNames.flatMap((libName, idx) => [
+                {
+                  key: `adopt_${libName}`,
+                  label: `Using ${libName}`,
+                  numeric: true,
+                  flex: 2,
+                },
+                {
+                  key: `adoptPct_${libName}`,
+                  label: `% ${libName}`,
+                  numeric: true,
+                  flex: 2,
+                  render: (val) => (
+                    <Badge tone={libTone(idx)} size={0}>
+                      {val}
+                    </Badge>
+                  ),
+                },
+              ]),
             ]}
             rows={adoptionRows}
             defaultSortKey="filesWithInternal"

@@ -4,8 +4,6 @@ import {
   BarChartIcon,
   CodeIcon,
   DocumentsIcon,
-  IceCreamIcon,
-  InlineIcon,
   ControlsIcon,
 } from "@sanity/icons";
 
@@ -22,7 +20,6 @@ const NAV_ITEMS = [
   { key: "sources", label: "Sources", icon: DocumentsIcon },
   { key: "html-tags", label: "HTML Tags", icon: CodeIcon },
   { key: "customizations", label: "Customizations", icon: ControlsIcon },
-  { key: "icons", label: "Icons", icon: IceCreamIcon },
 ];
 
 /**
@@ -81,7 +78,9 @@ function NavItem({ label, icon: Icon, active, onClick }) {
  */
 export function Layout({ activePage, onNavigate, children }) {
   // Highlight "components" when viewing a component detail page
-  const activeKey = activePage.startsWith("component/") ? "components" : activePage;
+  const activeKey = activePage.startsWith("component/")
+    ? "components"
+    : activePage;
 
   return (
     <Flex style={{ height: "100vh", overflow: "hidden" }}>

@@ -9,3 +9,6 @@ codebases
 
 # Test coverage output
 scripts/__tests__/coverage
+
+
+dashboard/dist

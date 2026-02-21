@@ -1,10 +1,20 @@
 import { useState, useMemo } from "react";
-import { Box, Card, Flex, Grid, Heading, Stack, Text, Badge, Button } from "@sanity/ui";
+import {
+  Box,
+  Card,
+  Flex,
+  Grid,
+  Heading,
+  Stack,
+  Text,
+  Badge,
+  Button,
+} from "@sanity/ui";
 import { ArrowLeftIcon } from "@sanity/icons";
 import { StatCard } from "../components/StatCard.jsx";
 import { DataTable } from "../components/DataTable.jsx";
 import { LabelledBar } from "../components/Bar.jsx";
-import { getComponentDetail } from "../data.js";
+import { getComponentDetail, LIBRARY_NAME, libraryNames } from "../data.js";
 
 /**
  * Compute a percentage safely.
@@ -77,7 +87,8 @@ export function ComponentDetail({ componentName, onNavigate }) {
           _key: name,
           name,
           usages: info.totalUsages,
-          pctOfInstances: pct(info.totalUsages, data.totalInstances).toFixed(1) + "%",
+          pctOfInstances:
+            pct(info.totalUsages, data.totalInstances).toFixed(1) + "%",
           uniqueValues,
           topValues,
         };
@@ -137,8 +148,8 @@ export function ComponentDetail({ componentName, onNavigate }) {
         <Stack space={2}>
           <Heading size={3}>&lt;{data.component} /&gt;</Heading>
           <Text size={1} muted>
-            @sanity/ui · {data.uniqueProps} unique props · {data.avgPropsPerInstance} avg
-            props per use
+            {data.library || LIBRARY_NAME} · {data.uniqueProps} unique props ·{" "}
+            {data.avgPropsPerInstance} avg props per use
           </Text>
         </Stack>
       </Flex>
@@ -214,16 +225,33 @@ export function ComponentDetail({ componentName, onNavigate }) {
                 flex: 3,
                 render: (val, row) => (
                   <Flex gap={2} align="center">
-                    <Text size={1} weight={selectedProp === val ? "bold" : "regular"}>
+                    <Text
+                      size={1}
+                      weight={selectedProp === val ? "bold" : "regular"}
+                    >
                       {val}
                     </Text>
-                    {selectedProp === val && <Badge tone="primary" size={0}>selected</Badge>}
+                    {selectedProp === val && (
+                      <Badge tone="primary" size={0}>
+                        selected
+                      </Badge>
+                    )}
                   </Flex>
                 ),
               },
               { key: "usages", label: "Usages", numeric: true, flex: 2 },
-              { key: "pctOfInstances", label: "% of Instances", numeric: true, flex: 2 },
-              { key: "uniqueValues", label: "Unique Values", numeric: true, flex: 2 },
+              {
+                key: "pctOfInstances",
+                label: "% of Instances",
+                numeric: true,
+                flex: 2,
+              },
+              {
+                key: "uniqueValues",
+                label: "Unique Values",
+                numeric: true,
+                flex: 2,
+              },
               {
                 key: "topValues",
                 label: "Top Values",
@@ -298,7 +326,12 @@ export function ComponentDetail({ componentName, onNavigate }) {
                   ),
                 },
                 { key: "count", label: "Count", numeric: true, flex: 2 },
-                { key: "percent", label: "% of Usages", numeric: true, flex: 2 },
+                {
+                  key: "percent",
+                  label: "% of Usages",
+                  numeric: true,
+                  flex: 2,
+                },
               ]}
               rows={valueRows}
               defaultSortKey="count"
@@ -313,7 +346,8 @@ export function ComponentDetail({ componentName, onNavigate }) {
           <Stack space={2}>
             <Heading size={1}>References</Heading>
             <Text size={1} muted>
-              Every JSX instance of &lt;{data.component}&gt; with file path and line number.
+              Every JSX instance of &lt;{data.component}&gt; with file path and
+              line number.
               {references.length > 0 && ` ${references.length} total.`}
             </Text>
           </Stack>
@@ -335,7 +369,11 @@ export function ComponentDetail({ componentName, onNavigate }) {
                 label: "File",
                 flex: 8,
                 render: (val) => (
-                  <Text size={1} style={{ fontFamily: "monospace", fontSize: 12 }} textOverflow="ellipsis">
+                  <Text
+                    size={1}
+                    style={{ fontFamily: "monospace", fontSize: 12 }}
+                    textOverflow="ellipsis"
+                  >
                     {val}
                   </Text>
                 ),
@@ -374,7 +412,9 @@ export function ComponentDetail({ componentName, onNavigate }) {
                 text="Next →"
                 mode="ghost"
                 disabled={refsPage >= totalRefPages - 1}
-                onClick={() => setRefsPage((p) => Math.min(totalRefPages - 1, p + 1))}
+                onClick={() =>
+                  setRefsPage((p) => Math.min(totalRefPages - 1, p + 1))
+                }
               />
             </Flex>
           )}

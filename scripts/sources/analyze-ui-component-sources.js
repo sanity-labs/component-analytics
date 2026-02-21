@@ -8,11 +8,21 @@ const {
   CODEBASES,
   CODEBASE_PATHS,
   TRACKED_COMPONENTS,
+  ALL_UI_LIBRARIES,
   UI_LIBRARY_NAMES,
   isTrackedUISource,
+  identifyLibrary,
   isOtherUISource,
   DEFAULT_GLOB_IGNORE,
 } = require("../lib/constants");
+
+/**
+ * Ordered list of library display names, derived from the config.
+ * Used to initialise per-library buckets in a deterministic order.
+ *
+ * @type {string[]}
+ */
+const LIBRARY_NAMES = ALL_UI_LIBRARIES.map((l) => l.name);
 
 /**
  * Parse named imports from an import statement, returning the LOCAL
@@ -45,19 +55,22 @@ function parseNamedImports(namedImportsStr) {
 }
 
 /**
- * Categorize an import source into one of: tracked UI library,
- * other UI library, internal, or uncategorized.
+ * Categorize an import source into one of: a specific tracked library
+ * name, `"otherUI"`, `"internal"`, or `null` (uncategorized).
  *
- * Uses the patterns defined in `component-analytics.config.js` via the
- * shared constants module.
+ * When the source belongs to a tracked UI library the **library name**
+ * is returned (e.g. `"Sanity UI"`, `"Sanity Icons"`) rather than a
+ * generic `"trackedUI"` string.  This allows downstream code to
+ * attribute usage to individual libraries.
  *
  * @param {string} source - The import source path
- * @returns {'trackedUI' | 'otherUI' | 'internal' | null} - The category
+ * @returns {string | null} - Library name, `"otherUI"`, `"internal"`, or `null`
  */
 function categorizeImportSource(source) {
-  // Tracked UI library (configured in component-analytics.config.js)
-  if (isTrackedUISource(source)) {
-    return "trackedUI";
+  // Tracked UI library — return the specific library name
+  const libName = identifyLibrary(source);
+  if (libName) {
+    return libName;
   }
 
   // Other UI libraries (configured in component-analytics.config.js)
@@ -261,15 +274,31 @@ function buildImportMap(content) {
  */
 function analyzeContent(content) {
   const instances = {
-    trackedUI: { components: [], count: 0 },
+    libraries: {},
     otherUI: { components: [], count: 0 },
     internal: { components: [], count: 0 },
     nativeHTML: { components: [], count: 0 },
     total: { components: [], count: 0 },
   };
 
+  // Initialize per-library buckets
+  for (const libName of LIBRARY_NAMES) {
+    instances.libraries[libName] = { components: [], count: 0 };
+  }
+
+  /**
+   * Resolve the instance bucket for a given category string.
+   * Library names resolve to `instances.libraries[cat]`; fixed
+   * categories (`otherUI`, `internal`, …) resolve to `instances[cat]`.
+   */
+  function getBucket(cat) {
+    return instances.libraries[cat] || instances[cat] || null;
+  }
+
   // Step 1: Build a lookup from local component name → category using
   // import statements.  This tells us WHERE each name comes from.
+  // Categories are now either a library name (e.g. "Sanity UI") or one
+  // of the fixed strings "otherUI" / "internal".
   const { componentToCategory, categoriesPresent } = buildImportMap(content);
 
   // Step 2: Count every PascalCase JSX element in the file.  For each
@@ -279,11 +308,14 @@ function analyzeContent(content) {
   for (const [name, count] of Object.entries(jsxCounts)) {
     const category = componentToCategory[name];
     if (category) {
-      for (let i = 0; i < count; i++) {
-        instances[category].components.push(name);
-        instances[category].count++;
-        instances.total.components.push(name);
-        instances.total.count++;
+      const bucket = getBucket(category);
+      if (bucket) {
+        for (let i = 0; i < count; i++) {
+          bucket.components.push(name);
+          bucket.count++;
+          instances.total.components.push(name);
+          instances.total.count++;
+        }
       }
     }
   }
@@ -305,11 +337,14 @@ function analyzeContent(content) {
     if (additionalRefs > 0) {
       const category = componentToCategory[name];
       if (category) {
-        for (let i = 0; i < additionalRefs; i++) {
-          instances[category].components.push(name);
-          instances[category].count++;
-          instances.total.components.push(name);
-          instances.total.count++;
+        const bucket = getBucket(category);
+        if (bucket) {
+          for (let i = 0; i < additionalRefs; i++) {
+            bucket.components.push(name);
+            bucket.count++;
+            instances.total.components.push(name);
+            instances.total.count++;
+          }
         }
       }
     }
@@ -331,15 +366,20 @@ function analyzeContent(content) {
     categoriesPresent.add("nativeHTML");
   }
 
+  // Determine which tracked libraries appear in this file
+  const librariesPresent = new Set(
+    [...categoriesPresent].filter((c) => LIBRARY_NAMES.includes(c)),
+  );
+  const hasAnyLibrary = librariesPresent.size > 0;
+
   return {
     imports: instances,
     jsxCounts,
     jsxCount: sumValues(jsxCounts),
-    // Track if this file has both internal and trackedUI imports
-    hasTrackedUI: categoriesPresent.has("trackedUI"),
+    hasAnyLibrary,
+    librariesPresent,
     hasInternal: categoriesPresent.has("internal"),
-    usesTrackedUIWithInternal:
-      categoriesPresent.has("trackedUI") && categoriesPresent.has("internal"),
+    usesLibraryWithInternal: hasAnyLibrary && categoriesPresent.has("internal"),
   };
 }
 
@@ -360,54 +400,86 @@ function analyzeFile(filePath) {
  */
 function aggregateResults(fileResults) {
   const aggregated = {
-    trackedUI: { components: {}, totalInstances: 0 },
+    libraries: {},
     otherUI: { components: {}, totalInstances: 0 },
     internal: { components: {}, totalInstances: 0 },
     nativeHTML: { components: {}, totalInstances: 0 },
     total: { components: {}, totalInstances: 0 },
     jsxCounts: {},
     fileCount: fileResults.length,
-    // Metrics for internal component analysis
     filesWithInternal: 0,
-    filesWithInternalUsingTrackedUI: 0,
-    internalComponentsUsingTrackedUI: 0,
+    filesWithInternalUsingAnyLibrary: 0,
     totalInternalComponents: 0,
+    /** Per-library internal-adoption counters. */
+    libraryAdoption: {},
   };
 
+  for (const libName of LIBRARY_NAMES) {
+    aggregated.libraries[libName] = { components: {}, totalInstances: 0 };
+    aggregated.libraryAdoption[libName] = { filesUsingLibrary: 0 };
+  }
+
   for (const result of fileResults) {
-    // Aggregate instance counts (includes nativeHTML)
-    ["trackedUI", "otherUI", "internal", "nativeHTML", "total"].forEach(
-      (category) => {
-        result.imports[category].components.forEach((comp) => {
-          if (!aggregated[category].components[comp]) {
-            aggregated[category].components[comp] = 0;
-          }
-          aggregated[category].components[comp]++;
-          aggregated[category].totalInstances++;
-        });
-      },
-    );
+    // Aggregate per-library instances
+    for (const [libName, libData] of Object.entries(result.imports.libraries)) {
+      if (!aggregated.libraries[libName]) continue;
+      for (const comp of libData.components) {
+        aggregated.libraries[libName].components[comp] =
+          (aggregated.libraries[libName].components[comp] || 0) + 1;
+        aggregated.libraries[libName].totalInstances++;
+      }
+    }
+
+    // Aggregate fixed categories (otherUI, internal, nativeHTML, total)
+    for (const category of ["otherUI", "internal", "nativeHTML", "total"]) {
+      for (const comp of result.imports[category].components) {
+        aggregated[category].components[comp] =
+          (aggregated[category].components[comp] || 0) + 1;
+        aggregated[category].totalInstances++;
+      }
+    }
 
     // Aggregate raw JSX counts (all PascalCase components)
     for (const [comp, count] of Object.entries(result.jsxCounts || {})) {
-      if (!aggregated.jsxCounts[comp]) {
-        aggregated.jsxCounts[comp] = 0;
-      }
-      aggregated.jsxCounts[comp] += count;
+      aggregated.jsxCounts[comp] = (aggregated.jsxCounts[comp] || 0) + count;
     }
 
-    // Track internal component usage with tracked UI library
+    // Track internal component usage with tracked libraries
     if (result.hasInternal) {
       aggregated.filesWithInternal++;
       aggregated.totalInternalComponents += result.imports.internal.count;
 
-      if (result.usesTrackedUIWithInternal) {
-        aggregated.filesWithInternalUsingTrackedUI++;
-        aggregated.internalComponentsUsingTrackedUI +=
-          result.imports.internal.count;
+      if (result.usesLibraryWithInternal) {
+        aggregated.filesWithInternalUsingAnyLibrary++;
+      }
+
+      // Per-library adoption
+      for (const libName of LIBRARY_NAMES) {
+        if (result.librariesPresent.has(libName)) {
+          aggregated.libraryAdoption[libName].filesUsingLibrary++;
+        }
       }
     }
   }
+
+  // ── Backward-compatible combined "trackedUI" field ──────────────────
+  // The text report, CSV, and main() summary still use a single
+  // combined tracked-UI bucket.  Compute it from the per-library data
+  // so those code paths continue to work without changes.
+  aggregated.trackedUI = { components: {}, totalInstances: 0 };
+  for (const libData of Object.values(aggregated.libraries)) {
+    for (const [comp, count] of Object.entries(libData.components)) {
+      aggregated.trackedUI.components[comp] =
+        (aggregated.trackedUI.components[comp] || 0) + count;
+    }
+    aggregated.trackedUI.totalInstances += libData.totalInstances;
+  }
+  aggregated.filesWithInternalUsingTrackedUI =
+    aggregated.filesWithInternalUsingAnyLibrary;
+  aggregated.internalComponentsUsingTrackedUI =
+    aggregated.totalInternalComponents > 0
+      ? aggregated.filesWithInternalUsingAnyLibrary
+      : 0;
 
   return aggregated;
 }
@@ -859,44 +931,45 @@ function generateCSV(results) {
 function generateJSON(results) {
   const summary = {
     generatedAt: new Date().toISOString(),
-    note: `All numbers are JSX element instances. ${UI_LIBRARY_NAMES} is the tracked UI library. Native HTML tag instances count against ${UI_LIBRARY_NAMES} adoption.`,
+    libraryNames: LIBRARY_NAMES,
+    note: `All numbers are JSX element instances. Tracked libraries: ${UI_LIBRARY_NAMES}. Native HTML tag instances count against library adoption.`,
     codebases: {},
     totals: {
       files: 0,
-      trackedUIInstances: 0,
+      libraryInstances: {},
+      totalLibraryInstances: 0,
       otherUIInstances: 0,
       internalInstances: 0,
       nativeHTMLInstances: 0,
       totalInstances: 0,
       filesWithInternal: 0,
-      filesWithInternalUsingTrackedUI: 0,
-      internalTrackedUIAdoptionPercent: 0,
+      filesWithInternalUsingAnyLibrary: 0,
+      internalAdoption: {},
     },
-    topTrackedUIComponents: [],
+    topComponentsByLibrary: {},
   };
 
-  const allTrackedUI = {};
+  // Initialize per-library totals
+  for (const libName of LIBRARY_NAMES) {
+    summary.totals.libraryInstances[libName] = 0;
+    summary.totals.internalAdoption[libName] = {
+      filesUsingLibrary: 0,
+      adoptionPercent: 0,
+    };
+  }
+
+  /** Per-library component counters across all codebases. */
+  const allComponentsByLibrary = {};
+  for (const libName of LIBRARY_NAMES) {
+    allComponentsByLibrary[libName] = {};
+  }
 
   for (const [codebase, data] of Object.entries(results)) {
     if (!data) continue;
 
-    const internalAdoptionPercent =
-      data.filesWithInternal > 0
-        ? parseFloat(
-            (
-              (data.filesWithInternalUsingTrackedUI / data.filesWithInternal) *
-              100
-            ).toFixed(1),
-          )
-        : 0;
-
-    summary.codebases[codebase] = {
+    const cbEntry = {
       fileCount: data.fileCount,
-      trackedUI: {
-        instances: data.trackedUI.totalInstances,
-        uniqueComponents: Object.keys(data.trackedUI.components).length,
-        components: data.trackedUI.components,
-      },
+      libraries: {},
       otherUI: {
         instances: data.otherUI.totalInstances,
         uniqueComponents: Object.keys(data.otherUI.components).length,
@@ -916,60 +989,83 @@ function generateJSON(results) {
         instances: data.total.totalInstances,
         uniqueComponents: Object.keys(data.total.components).length,
       },
-      internalTrackedUIAdoption: {
-        filesWithInternal: data.filesWithInternal,
-        filesUsingTrackedUI: data.filesWithInternalUsingTrackedUI,
-        adoptionPercent: internalAdoptionPercent,
-      },
+      internalAdoption: {},
     };
 
+    // Per-library data for this codebase
+    for (const libName of LIBRARY_NAMES) {
+      const libData = data.libraries[libName] || {
+        components: {},
+        totalInstances: 0,
+      };
+      cbEntry.libraries[libName] = {
+        instances: libData.totalInstances,
+        uniqueComponents: Object.keys(libData.components).length,
+        components: libData.components,
+      };
+
+      const adoption = data.libraryAdoption[libName] || {};
+      const filesUsing = adoption.filesUsingLibrary || 0;
+      cbEntry.internalAdoption[libName] = {
+        filesWithInternal: data.filesWithInternal,
+        filesUsingLibrary: filesUsing,
+        adoptionPercent:
+          data.filesWithInternal > 0
+            ? parseFloat(
+                ((filesUsing / data.filesWithInternal) * 100).toFixed(1),
+              )
+            : 0,
+      };
+
+      // Accumulate per-library totals
+      summary.totals.libraryInstances[libName] += libData.totalInstances;
+      summary.totals.totalLibraryInstances += libData.totalInstances;
+
+      // Accumulate per-library adoption
+      summary.totals.internalAdoption[libName].filesUsingLibrary += filesUsing;
+
+      // Accumulate component counters for top-N lists
+      for (const [comp, count] of Object.entries(libData.components)) {
+        allComponentsByLibrary[libName][comp] =
+          (allComponentsByLibrary[libName][comp] || 0) + count;
+      }
+    }
+
+    summary.codebases[codebase] = cbEntry;
+
     summary.totals.files += data.fileCount;
-    summary.totals.trackedUIInstances += data.trackedUI.totalInstances;
     summary.totals.otherUIInstances += data.otherUI.totalInstances;
     summary.totals.internalInstances += data.internal.totalInstances;
     summary.totals.nativeHTMLInstances += data.nativeHTML.totalInstances;
     summary.totals.totalInstances += data.total.totalInstances;
     summary.totals.filesWithInternal += data.filesWithInternal;
-    summary.totals.filesWithInternalUsingTrackedUI +=
-      data.filesWithInternalUsingTrackedUI;
-
-    // Aggregate tracked UI library
-    for (const [comp, count] of Object.entries(data.trackedUI.components)) {
-      if (!allTrackedUI[comp]) {
-        allTrackedUI[comp] = 0;
-      }
-      allTrackedUI[comp] += count;
-    }
+    summary.totals.filesWithInternalUsingAnyLibrary +=
+      data.filesWithInternalUsingAnyLibrary || 0;
   }
 
-  // Calculate total internal adoption percent
-  summary.totals.internalTrackedUIAdoptionPercent =
-    summary.totals.filesWithInternal > 0
-      ? parseFloat(
-          (
-            (summary.totals.filesWithInternalUsingTrackedUI /
-              summary.totals.filesWithInternal) *
-            100
-          ).toFixed(1),
-        )
-      : 0;
+  // Finalize per-library adoption percentages in totals
+  for (const libName of LIBRARY_NAMES) {
+    const adoption = summary.totals.internalAdoption[libName];
+    adoption.adoptionPercent =
+      summary.totals.filesWithInternal > 0
+        ? parseFloat(
+            (
+              (adoption.filesUsingLibrary / summary.totals.filesWithInternal) *
+              100
+            ).toFixed(1),
+          )
+        : 0;
+  }
 
-  // Top tracked UI library components
-  summary.topTrackedUIComponents = Object.entries(allTrackedUI)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 30)
-    .map(([name, count]) => ({ name, instances: count }));
-
-  summary.totals.trackedUIPercentage =
-    summary.totals.totalInstances > 0
-      ? parseFloat(
-          (
-            (summary.totals.trackedUIInstances /
-              summary.totals.totalInstances) *
-            100
-          ).toFixed(1),
-        )
-      : 0;
+  // Top components per library (up to 30 each)
+  for (const libName of LIBRARY_NAMES) {
+    summary.topComponentsByLibrary[libName] = Object.entries(
+      allComponentsByLibrary[libName],
+    )
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 30)
+      .map(([name, count]) => ({ name, instances: count }));
+  }
 
   return JSON.stringify(summary, null, 2);
 }

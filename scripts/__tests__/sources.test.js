@@ -72,20 +72,20 @@ describe("parseNamedImports", () => {
 
 describe("categorizeImportSource", () => {
   describe("Tracked UI library detection", () => {
-    test('identifies tracked UI import source as "trackedUI"', () => {
-      expect(categorizeImportSource("@sanity/ui")).toBe("trackedUI");
+    test("identifies tracked UI import source by library name", () => {
+      expect(categorizeImportSource("@sanity/ui")).toBe("Sanity UI");
     });
 
-    test('identifies tracked UI subpaths as "trackedUI"', () => {
-      expect(categorizeImportSource("@sanity/ui/components")).toBe("trackedUI");
+    test("identifies tracked UI subpaths by library name", () => {
+      expect(categorizeImportSource("@sanity/ui/components")).toBe("Sanity UI");
     });
 
     test("excludes configured exclude sources", () => {
-      expect(categorizeImportSource("@sanity/ui/theme")).not.toBe("trackedUI");
+      expect(categorizeImportSource("@sanity/ui/theme")).not.toBe("Sanity UI");
     });
 
-    test("identifies @sanity/icons as tracked UI (configured in uiLibraries)", () => {
-      expect(categorizeImportSource("@sanity/icons")).toBe("trackedUI");
+    test("identifies @sanity/icons by its own library name", () => {
+      expect(categorizeImportSource("@sanity/icons")).toBe("Sanity Icons");
     });
   });
 
@@ -107,8 +107,8 @@ describe("categorizeImportSource", () => {
       expect(categorizeImportSource("framer-motion")).toBe("otherUI");
     });
 
-    test("@sanity/icons is tracked UI, not otherUI", () => {
-      expect(categorizeImportSource("@sanity/icons")).toBe("trackedUI");
+    test("@sanity/icons is a tracked library, not otherUI", () => {
+      expect(categorizeImportSource("@sanity/icons")).toBe("Sanity Icons");
     });
   });
 
@@ -352,10 +352,10 @@ describe("buildImportMap", () => {
     `;
     const { componentToCategory } = buildImportMap(content);
 
-    expect(componentToCategory.Button).toBe("trackedUI");
-    expect(componentToCategory.Card).toBe("trackedUI");
+    expect(componentToCategory.Button).toBe("Sanity UI");
+    expect(componentToCategory.Card).toBe("Sanity UI");
     // @sanity/icons is now a tracked UI library in the config
-    expect(componentToCategory.CloseIcon).toBe("trackedUI");
+    expect(componentToCategory.CloseIcon).toBe("Sanity Icons");
   });
 
   test("maps aliased imports under their local name", () => {
@@ -364,8 +364,8 @@ describe("buildImportMap", () => {
     `;
     const { componentToCategory } = buildImportMap(content);
 
-    expect(componentToCategory.UIButton).toBe("trackedUI");
-    expect(componentToCategory.UICard).toBe("trackedUI");
+    expect(componentToCategory.UIButton).toBe("Sanity UI");
+    expect(componentToCategory.UICard).toBe("Sanity UI");
     expect(componentToCategory.Button).toBeUndefined();
     expect(componentToCategory.Card).toBeUndefined();
   });
@@ -387,7 +387,7 @@ describe("buildImportMap", () => {
     `;
     const { categoriesPresent } = buildImportMap(content);
 
-    expect(categoriesPresent.has("trackedUI")).toBe(true);
+    expect(categoriesPresent.has("Sanity UI")).toBe(true);
     expect(categoriesPresent.has("otherUI")).toBe(true);
     // CustomWidget is from a relative path → internal
     expect(categoriesPresent.has("internal")).toBe(true);
@@ -399,7 +399,7 @@ describe("buildImportMap", () => {
     `;
     const { componentToCategory } = buildImportMap(content);
 
-    expect(componentToCategory.Button).toBe("trackedUI");
+    expect(componentToCategory.Button).toBe("Sanity UI");
     expect(componentToCategory.useToast).toBeUndefined();
     expect(componentToCategory.rem).toBeUndefined();
   });
@@ -442,13 +442,15 @@ describe("analyzeContent", () => {
     const result = analyzeContent(content);
 
     // Each component appears once in JSX → 1 instance each
-    expect(result.imports.trackedUI.count).toBe(3);
-    expect(result.imports.trackedUI.components).toContain("Button");
-    expect(result.imports.trackedUI.components).toContain("Card");
-    expect(result.imports.trackedUI.components).toContain("Flex");
+    expect(result.imports.libraries["Sanity UI"].count).toBe(3);
+    expect(result.imports.libraries["Sanity UI"].components).toContain(
+      "Button",
+    );
+    expect(result.imports.libraries["Sanity UI"].components).toContain("Card");
+    expect(result.imports.libraries["Sanity UI"].components).toContain("Flex");
     expect(result.imports.nativeHTML.count).toBe(0);
     expect(result.imports.total.count).toBe(3);
-    expect(result.hasTrackedUI).toBe(true);
+    expect(result.hasAnyLibrary).toBe(true);
     expect(result.hasInternal).toBe(false);
   });
 
@@ -470,8 +472,8 @@ describe("analyzeContent", () => {
     const result = analyzeContent(content);
 
     // Button rendered 3 times, Card rendered 1 time
-    expect(result.imports.trackedUI.count).toBe(4);
-    const buttons = result.imports.trackedUI.components.filter(
+    expect(result.imports.libraries["Sanity UI"].count).toBe(4);
+    const buttons = result.imports.libraries["Sanity UI"].components.filter(
       (c) => c === "Button",
     );
     expect(buttons.length).toBe(3);
@@ -498,9 +500,11 @@ describe("analyzeContent", () => {
     const result = analyzeContent(content);
 
     // Tracked UI: Button(1) + Card(1) = 2 instances
-    expect(result.imports.trackedUI.count).toBe(2);
-    expect(result.imports.trackedUI.components).toContain("Button");
-    expect(result.imports.trackedUI.components).toContain("Card");
+    expect(result.imports.libraries["Sanity UI"].count).toBe(2);
+    expect(result.imports.libraries["Sanity UI"].components).toContain(
+      "Button",
+    );
+    expect(result.imports.libraries["Sanity UI"].components).toContain("Card");
 
     // Other UI: AnimatePresence(1)
     expect(result.imports.otherUI.count).toBe(1);
@@ -513,9 +517,9 @@ describe("analyzeContent", () => {
     expect(result.imports.nativeHTML.count).toBe(0);
     expect(result.imports.total.count).toBe(4);
 
-    expect(result.hasTrackedUI).toBe(true);
+    expect(result.hasAnyLibrary).toBe(true);
     expect(result.hasInternal).toBe(true);
-    expect(result.usesTrackedUIWithInternal).toBe(true);
+    expect(result.usesLibraryWithInternal).toBe(true);
   });
 
   test("excludes hooks and utilities — only counts JSX instances", () => {
@@ -531,8 +535,10 @@ describe("analyzeContent", () => {
     const result = analyzeContent(content);
 
     // Only Button appears in JSX; useToast and formatDate are not JSX elements
-    expect(result.imports.trackedUI.count).toBe(1);
-    expect(result.imports.trackedUI.components).toEqual(["Button"]);
+    expect(result.imports.libraries["Sanity UI"].count).toBe(1);
+    expect(result.imports.libraries["Sanity UI"].components).toEqual([
+      "Button",
+    ]);
   });
 
   test("handles aliased imports — counts instances under alias name", () => {
@@ -551,9 +557,13 @@ describe("analyzeContent", () => {
     const result = analyzeContent(content);
 
     // JSX uses UIButton(1) and UICard(1) — both mapped via alias
-    expect(result.imports.trackedUI.count).toBe(2);
-    expect(result.imports.trackedUI.components).toContain("UIButton");
-    expect(result.imports.trackedUI.components).toContain("UICard");
+    expect(result.imports.libraries["Sanity UI"].count).toBe(2);
+    expect(result.imports.libraries["Sanity UI"].components).toContain(
+      "UIButton",
+    );
+    expect(result.imports.libraries["Sanity UI"].components).toContain(
+      "UICard",
+    );
   });
 
   test("handles default imports correctly", () => {
@@ -574,7 +584,7 @@ describe("analyzeContent", () => {
     const result = analyzeContent(content);
 
     // Card(1) + CustomWidget(1) = 2 instances
-    expect(result.imports.trackedUI.count).toBe(1);
+    expect(result.imports.libraries["Sanity UI"].count).toBe(1);
     expect(result.imports.internal.count).toBe(1);
     expect(result.imports.total.count).toBe(2);
   });
@@ -583,12 +593,12 @@ describe("analyzeContent", () => {
     const content = "";
     const result = analyzeContent(content);
 
-    expect(result.imports.trackedUI.count).toBe(0);
+    expect(result.imports.libraries["Sanity UI"].count).toBe(0);
     expect(result.imports.otherUI.count).toBe(0);
     expect(result.imports.internal.count).toBe(0);
     expect(result.imports.total.count).toBe(0);
     expect(result.jsxCount).toBe(0);
-    expect(result.hasTrackedUI).toBe(false);
+    expect(result.hasAnyLibrary).toBe(false);
     expect(result.hasInternal).toBe(false);
   });
 
@@ -604,7 +614,7 @@ describe("analyzeContent", () => {
 
     const result = analyzeContent(content);
 
-    expect(result.imports.trackedUI.count).toBe(0);
+    expect(result.imports.libraries["Sanity UI"].count).toBe(0);
     expect(result.imports.otherUI.count).toBe(0);
     expect(result.imports.internal.count).toBe(0);
     expect(result.imports.total.count).toBe(0);
@@ -625,8 +635,10 @@ describe("analyzeContent", () => {
 
     // Theme is imported but not rendered as JSX here (and even if it were,
     // @sanity/ui/theme is excluded from the trackedUI category)
-    expect(result.imports.trackedUI.count).toBe(1);
-    expect(result.imports.trackedUI.components).toContain("Button");
+    expect(result.imports.libraries["Sanity UI"].count).toBe(1);
+    expect(result.imports.libraries["Sanity UI"].components).toContain(
+      "Button",
+    );
   });
 
   test("tracks internal components using tracked UI library", () => {
@@ -652,12 +664,12 @@ describe("analyzeContent", () => {
 
     const result = analyzeContent(content);
 
-    expect(result.hasTrackedUI).toBe(true);
+    expect(result.hasAnyLibrary).toBe(true);
     expect(result.hasInternal).toBe(true);
-    expect(result.usesTrackedUIWithInternal).toBe(true);
+    expect(result.usesLibraryWithInternal).toBe(true);
 
     // Instances: Flex(1) + Card(1) + Button(1) = 3 tracked UI
-    expect(result.imports.trackedUI.count).toBe(3);
+    expect(result.imports.libraries["Sanity UI"].count).toBe(3);
     // CustomWidget(1) + FormField(1) = 2 internal
     expect(result.imports.internal.count).toBe(2);
     expect(result.imports.total.count).toBe(5);
@@ -679,11 +691,11 @@ describe("analyzeContent", () => {
 
     const result = analyzeContent(content);
 
-    expect(result.hasTrackedUI).toBe(false);
+    expect(result.hasAnyLibrary).toBe(false);
     expect(result.hasInternal).toBe(true);
-    expect(result.usesTrackedUIWithInternal).toBe(false);
+    expect(result.usesLibraryWithInternal).toBe(false);
 
-    expect(result.imports.trackedUI.count).toBe(0);
+    expect(result.imports.libraries["Sanity UI"].count).toBe(0);
     expect(result.imports.internal.count).toBe(2);
     expect(result.imports.total.count).toBe(2);
   });
@@ -700,8 +712,10 @@ describe("analyzeContent", () => {
     const result = analyzeContent(content);
 
     // Only Button appears in JSX — Card, Flex, Text are imported but unused
-    expect(result.imports.trackedUI.count).toBe(1);
-    expect(result.imports.trackedUI.components).toEqual(["Button"]);
+    expect(result.imports.libraries["Sanity UI"].count).toBe(1);
+    expect(result.imports.libraries["Sanity UI"].components).toEqual([
+      "Button",
+    ]);
   });
 });
 
@@ -710,7 +724,9 @@ describe("aggregateResults", () => {
     const fileResults = [
       {
         imports: {
-          trackedUI: { components: ["Button", "Card"], count: 2 },
+          libraries: {
+            "Sanity UI": { components: ["Button", "Card"], count: 2 },
+          },
           otherUI: { components: ["AnimatePresence"], count: 1 },
           internal: { components: ["CustomInput"], count: 1 },
           nativeHTML: { components: [], count: 0 },
@@ -721,13 +737,16 @@ describe("aggregateResults", () => {
         },
         jsxCounts: { Button: 1, Card: 1, AnimatePresence: 1, CustomInput: 1 },
         jsxCount: 4,
-        hasTrackedUI: true,
+        hasAnyLibrary: true,
+        librariesPresent: new Set(["Sanity UI"]),
         hasInternal: true,
-        usesTrackedUIWithInternal: true,
+        usesLibraryWithInternal: true,
       },
       {
         imports: {
-          trackedUI: { components: ["Flex", "Text"], count: 2 },
+          libraries: {
+            "Sanity UI": { components: ["Flex", "Text"], count: 2 },
+          },
           otherUI: { components: [], count: 0 },
           internal: { components: ["CustomButton"], count: 1 },
           nativeHTML: { components: [], count: 0 },
@@ -738,9 +757,10 @@ describe("aggregateResults", () => {
         },
         jsxCounts: { Flex: 1, Text: 1, CustomButton: 1 },
         jsxCount: 3,
-        hasTrackedUI: true,
+        hasAnyLibrary: true,
+        librariesPresent: new Set(["Sanity UI"]),
         hasInternal: true,
-        usesTrackedUIWithInternal: true,
+        usesLibraryWithInternal: true,
       },
     ];
 
@@ -802,7 +822,7 @@ describe("aggregateResults", () => {
     const fileResults = [
       {
         imports: {
-          trackedUI: { components: ["Button"], count: 1 },
+          libraries: { "Sanity UI": { components: ["Button"], count: 1 } },
           otherUI: { components: [], count: 0 },
           internal: { components: [], count: 0 },
           nativeHTML: { components: [], count: 0 },
@@ -810,9 +830,10 @@ describe("aggregateResults", () => {
         },
         jsxCounts: { Button: 1 },
         jsxCount: 1,
-        hasTrackedUI: true,
+        hasAnyLibrary: true,
+        librariesPresent: new Set(["Sanity UI"]),
         hasInternal: false,
-        usesTrackedUIWithInternal: false,
+        usesLibraryWithInternal: false,
       },
     ];
 
@@ -827,9 +848,11 @@ describe("aggregateResults", () => {
     const fileResults = [
       {
         imports: {
-          trackedUI: {
-            components: ["Button", "Button", "Button"],
-            count: 3,
+          libraries: {
+            "Sanity UI": {
+              components: ["Button", "Button", "Button"],
+              count: 3,
+            },
           },
           otherUI: { components: [], count: 0 },
           internal: { components: [], count: 0 },
@@ -838,13 +861,16 @@ describe("aggregateResults", () => {
         },
         jsxCounts: { Button: 3 },
         jsxCount: 3,
-        hasTrackedUI: true,
+        hasAnyLibrary: true,
+        librariesPresent: new Set(["Sanity UI"]),
         hasInternal: false,
-        usesTrackedUIWithInternal: false,
+        usesLibraryWithInternal: false,
       },
       {
         imports: {
-          trackedUI: { components: ["Button", "Button", "Card"], count: 3 },
+          libraries: {
+            "Sanity UI": { components: ["Button", "Button", "Card"], count: 3 },
+          },
           otherUI: { components: [], count: 0 },
           internal: { components: [], count: 0 },
           nativeHTML: { components: [], count: 0 },
@@ -852,9 +878,10 @@ describe("aggregateResults", () => {
         },
         jsxCounts: { Button: 2, Card: 1 },
         jsxCount: 3,
-        hasTrackedUI: true,
+        hasAnyLibrary: true,
+        librariesPresent: new Set(["Sanity UI"]),
         hasInternal: false,
-        usesTrackedUIWithInternal: false,
+        usesLibraryWithInternal: false,
       },
     ];
 
@@ -874,7 +901,7 @@ describe("aggregateResults", () => {
     const fileResults = [
       {
         imports: {
-          trackedUI: { components: ["Button"], count: 1 },
+          libraries: { "Sanity UI": { components: ["Button"], count: 1 } },
           otherUI: { components: [], count: 0 },
           internal: { components: ["CustomInput"], count: 1 },
           nativeHTML: { components: [], count: 0 },
@@ -882,13 +909,14 @@ describe("aggregateResults", () => {
         },
         jsxCounts: { Button: 1, CustomInput: 1 },
         jsxCount: 2,
-        hasTrackedUI: true,
+        hasAnyLibrary: true,
+        librariesPresent: new Set(["Sanity UI"]),
         hasInternal: true,
-        usesTrackedUIWithInternal: true,
+        usesLibraryWithInternal: true,
       },
       {
         imports: {
-          trackedUI: { components: [], count: 0 },
+          libraries: { "Sanity UI": { components: [], count: 0 } },
           otherUI: { components: [], count: 0 },
           internal: { components: ["LocalWidget"], count: 1 },
           nativeHTML: { components: [], count: 0 },
@@ -896,13 +924,14 @@ describe("aggregateResults", () => {
         },
         jsxCounts: { LocalWidget: 1 },
         jsxCount: 1,
-        hasTrackedUI: false,
+        hasAnyLibrary: false,
+        librariesPresent: new Set(),
         hasInternal: true,
-        usesTrackedUIWithInternal: false,
+        usesLibraryWithInternal: false,
       },
       {
         imports: {
-          trackedUI: { components: ["Card"], count: 1 },
+          libraries: { "Sanity UI": { components: ["Card"], count: 1 } },
           otherUI: { components: [], count: 0 },
           internal: { components: [], count: 0 },
           nativeHTML: { components: [], count: 0 },
@@ -910,9 +939,10 @@ describe("aggregateResults", () => {
         },
         jsxCounts: { Card: 1 },
         jsxCount: 1,
-        hasTrackedUI: true,
+        hasAnyLibrary: true,
+        librariesPresent: new Set(["Sanity UI"]),
         hasInternal: false,
-        usesTrackedUIWithInternal: false,
+        usesLibraryWithInternal: false,
       },
     ];
 
@@ -963,14 +993,18 @@ describe("Integration tests", () => {
     // Verify tracked UI JSX instances.
     // Card is imported but never rendered as <Card> (used via motion.create).
     // Actual JSX: Flex(1) + Stack(1) + Text(2) + Box(1) + Button(1) = 6
-    expect(result.imports.trackedUI.count).toBe(6);
-    expect(result.imports.trackedUI.components).toContain("Box");
-    expect(result.imports.trackedUI.components).toContain("Button");
-    expect(result.imports.trackedUI.components).toContain("Flex");
-    expect(result.imports.trackedUI.components).toContain("Stack");
-    expect(result.imports.trackedUI.components).toContain("Text");
+    expect(result.imports.libraries["Sanity UI"].count).toBe(6);
+    expect(result.imports.libraries["Sanity UI"].components).toContain("Box");
+    expect(result.imports.libraries["Sanity UI"].components).toContain(
+      "Button",
+    );
+    expect(result.imports.libraries["Sanity UI"].components).toContain("Flex");
+    expect(result.imports.libraries["Sanity UI"].components).toContain("Stack");
+    expect(result.imports.libraries["Sanity UI"].components).toContain("Text");
     // Card is imported but not rendered as <Card> in JSX
-    expect(result.imports.trackedUI.components).not.toContain("Card");
+    expect(result.imports.libraries["Sanity UI"].components).not.toContain(
+      "Card",
+    );
 
     // Verify Other UI: AnimatePresence(1)
     // `motion` is lowercase so it's not counted as a component
@@ -999,9 +1033,9 @@ describe("Integration tests", () => {
     expect(result.jsxCounts["Button"]).toBe(1);
 
     // Verify internal tracking
-    expect(result.hasTrackedUI).toBe(true);
+    expect(result.hasAnyLibrary).toBe(true);
     expect(result.hasInternal).toBe(true);
-    expect(result.usesTrackedUIWithInternal).toBe(true);
+    expect(result.usesLibraryWithInternal).toBe(true);
   });
 
   test("handles real-world edge cases", () => {
@@ -1031,13 +1065,19 @@ describe("Integration tests", () => {
 
     // Grid(1) + UIButton(1) = 2 tracked UI library JSX instances
     // Button was aliased as UIButton, so UIButton is the local name
-    expect(result.imports.trackedUI.count).toBe(2);
-    expect(result.imports.trackedUI.components).toContain("UIButton");
-    expect(result.imports.trackedUI.components).toContain("Grid");
+    expect(result.imports.libraries["Sanity UI"].count).toBe(2);
+    expect(result.imports.libraries["Sanity UI"].components).toContain(
+      "UIButton",
+    );
+    expect(result.imports.libraries["Sanity UI"].components).toContain("Grid");
 
     // Should not count hooks, types, or constants
-    expect(result.imports.trackedUI.components).not.toContain("useCallback");
-    expect(result.imports.trackedUI.components).not.toContain("ComponentProps");
+    expect(result.imports.libraries["Sanity UI"].components).not.toContain(
+      "useCallback",
+    );
+    expect(result.imports.libraries["Sanity UI"].components).not.toContain(
+      "ComponentProps",
+    );
 
     // JSX instance counts
     expect(result.jsxCounts["Grid"]).toBe(1);
@@ -1063,13 +1103,23 @@ describe("Integration tests", () => {
     const result = analyzeContent(content);
 
     // Only Box and Button appear in JSX — the other 4 are imported but unused
-    expect(result.imports.trackedUI.count).toBe(2);
-    expect(result.imports.trackedUI.components).toContain("Box");
-    expect(result.imports.trackedUI.components).toContain("Button");
-    expect(result.imports.trackedUI.components).not.toContain("Card");
-    expect(result.imports.trackedUI.components).not.toContain("Flex");
-    expect(result.imports.trackedUI.components).not.toContain("Stack");
-    expect(result.imports.trackedUI.components).not.toContain("Text");
+    expect(result.imports.libraries["Sanity UI"].count).toBe(2);
+    expect(result.imports.libraries["Sanity UI"].components).toContain("Box");
+    expect(result.imports.libraries["Sanity UI"].components).toContain(
+      "Button",
+    );
+    expect(result.imports.libraries["Sanity UI"].components).not.toContain(
+      "Card",
+    );
+    expect(result.imports.libraries["Sanity UI"].components).not.toContain(
+      "Flex",
+    );
+    expect(result.imports.libraries["Sanity UI"].components).not.toContain(
+      "Stack",
+    );
+    expect(result.imports.libraries["Sanity UI"].components).not.toContain(
+      "Text",
+    );
   });
 
   test("handles mixed default and named imports", () => {
@@ -1085,8 +1135,10 @@ describe("Integration tests", () => {
 
     const result = analyzeContent(content);
 
-    expect(result.imports.trackedUI.count).toBe(1);
-    expect(result.imports.trackedUI.components).toContain("Button");
+    expect(result.imports.libraries["Sanity UI"].count).toBe(1);
+    expect(result.imports.libraries["Sanity UI"].components).toContain(
+      "Button",
+    );
     expect(result.imports.internal.count).toBe(1);
     expect(result.imports.internal.components).toContain("CustomDialog");
   });
@@ -1104,8 +1156,10 @@ describe("Integration tests", () => {
     const result = analyzeContent(content);
 
     // Button(1) = 1 instance; namespace imports are not individual components
-    expect(result.imports.trackedUI.count).toBe(1);
-    expect(result.imports.trackedUI.components).toEqual(["Button"]);
+    expect(result.imports.libraries["Sanity UI"].count).toBe(1);
+    expect(result.imports.libraries["Sanity UI"].components).toEqual([
+      "Button",
+    ]);
   });
 
   test("handles re-exports correctly", () => {
@@ -1117,7 +1171,7 @@ describe("Integration tests", () => {
     const result = analyzeContent(content);
 
     // Re-exports have no JSX usage — count is 0
-    expect(result.imports.trackedUI.count).toBe(0);
+    expect(result.imports.libraries["Sanity UI"].count).toBe(0);
   });
 
   test("handles Fragment components", () => {
@@ -1140,8 +1194,8 @@ describe("Integration tests", () => {
     // Button appears twice in JSX = 2 instances
     // Fragment is from React (uncategorized), so not counted
     // Button(2) = 2 instances; Fragment is from React (uncategorized)
-    expect(result.imports.trackedUI.count).toBe(2);
-    const buttonCount = result.imports.trackedUI.components.filter(
+    expect(result.imports.libraries["Sanity UI"].count).toBe(2);
+    const buttonCount = result.imports.libraries["Sanity UI"].components.filter(
       (c) => c === "Button",
     ).length;
     expect(buttonCount).toBe(2);
@@ -1159,7 +1213,7 @@ describe("Integration tests", () => {
     const result = analyzeContent(content);
 
     // Button(1) = 1 instance
-    expect(result.imports.trackedUI.count).toBe(1);
+    expect(result.imports.libraries["Sanity UI"].count).toBe(1);
   });
 
   test("handles conditional rendering with components", () => {
@@ -1174,7 +1228,7 @@ describe("Integration tests", () => {
     const result = analyzeContent(content);
 
     // Card(1) + Button(1) = 2 instances
-    expect(result.imports.trackedUI.count).toBe(2);
+    expect(result.imports.libraries["Sanity UI"].count).toBe(2);
     expect(result.imports.nativeHTML.count).toBe(0);
     expect(result.imports.total.count).toBe(2);
   });
@@ -1196,12 +1250,12 @@ describe("Integration tests", () => {
 
     const result = analyzeContent(content);
 
-    expect(result.imports.trackedUI.count).toBe(2);
+    expect(result.imports.libraries["Sanity UI"].count).toBe(2);
     expect(result.jsxCounts["Button"]).toBeGreaterThanOrEqual(1);
     expect(result.jsxCounts["Stack"]).toBeGreaterThanOrEqual(1);
   });
 
-  test("icons from @sanity/icons are counted as tracked UI", () => {
+  test("icons from @sanity/icons are counted under their own library", () => {
     const content = `
       import { Button, Card } from '@sanity/ui'
       import { CloseIcon, EditIcon, TrashIcon } from '@sanity/icons'
@@ -1219,18 +1273,30 @@ describe("Integration tests", () => {
 
     const result = analyzeContent(content);
 
-    // Card(1) + Button(3) = 4 JSX instances.
-    // CloseIcon, EditIcon, TrashIcon are passed as props (icon={…}) — 3 prop refs.
-    // Total tracked UI: 4 + 3 = 7
-    expect(result.imports.trackedUI.count).toBe(7);
-    expect(result.imports.trackedUI.components).toContain("Button");
-    expect(result.imports.trackedUI.components).toContain("Card");
-    expect(result.imports.trackedUI.components).toContain("CloseIcon");
-    expect(result.imports.trackedUI.components).toContain("EditIcon");
-    expect(result.imports.trackedUI.components).toContain("TrashIcon");
+    // Sanity UI: Card(1) + Button(3) = 4 JSX instances
+    expect(result.imports.libraries["Sanity UI"].count).toBe(4);
+    expect(result.imports.libraries["Sanity UI"].components).toContain(
+      "Button",
+    );
+    expect(result.imports.libraries["Sanity UI"].components).toContain("Card");
+
+    // Sanity Icons: CloseIcon, EditIcon, TrashIcon passed as props (icon={…}) — 3 prop refs
+    expect(result.imports.libraries["Sanity Icons"].count).toBe(3);
+    expect(result.imports.libraries["Sanity Icons"].components).toContain(
+      "CloseIcon",
+    );
+    expect(result.imports.libraries["Sanity Icons"].components).toContain(
+      "EditIcon",
+    );
+    expect(result.imports.libraries["Sanity Icons"].components).toContain(
+      "TrashIcon",
+    );
+
+    // Total across all libraries: 4 + 3 = 7
+    expect(result.imports.total.count).toBe(7);
   });
 
-  test("icons rendered as JSX from @sanity/icons ARE counted as tracked UI", () => {
+  test("icons rendered as JSX from @sanity/icons go to Sanity Icons library", () => {
     const content = `
       import { Card } from '@sanity/ui'
       import { CloseIcon, EditIcon } from '@sanity/icons'
@@ -1248,12 +1314,21 @@ describe("Integration tests", () => {
 
     const result = analyzeContent(content);
 
-    // Card(1) + CloseIcon(1) + EditIcon(2) = 4 tracked UI instances.
-    // @sanity/icons is now a tracked UI library in the config.
-    expect(result.imports.trackedUI.count).toBe(4);
-    expect(result.imports.trackedUI.components).toContain("Card");
-    expect(result.imports.trackedUI.components).toContain("CloseIcon");
-    expect(result.imports.trackedUI.components).toContain("EditIcon");
+    // Sanity UI: Card(1)
+    expect(result.imports.libraries["Sanity UI"].count).toBe(1);
+    expect(result.imports.libraries["Sanity UI"].components).toContain("Card");
+
+    // Sanity Icons: CloseIcon(1) + EditIcon(2) = 3
+    expect(result.imports.libraries["Sanity Icons"].count).toBe(3);
+    expect(result.imports.libraries["Sanity Icons"].components).toContain(
+      "CloseIcon",
+    );
+    expect(result.imports.libraries["Sanity Icons"].components).toContain(
+      "EditIcon",
+    );
+
+    // Total: 1 + 3 = 4
+    expect(result.imports.total.count).toBe(4);
   });
 });
 
@@ -1277,7 +1352,7 @@ describe("Native HTML tag counting", () => {
     const result = analyzeContent(content);
 
     // tracked UI library instances: Card(1) + Text(1) = 2
-    expect(result.imports.trackedUI.count).toBe(2);
+    expect(result.imports.libraries["Sanity UI"].count).toBe(2);
     expect(result.imports.nativeHTML.count).toBeGreaterThanOrEqual(2);
     expect(result.imports.nativeHTML.components).toContain("div");
     expect(result.imports.nativeHTML.components).toContain("span");
@@ -1301,16 +1376,16 @@ describe("Native HTML tag counting", () => {
     const result = analyzeContent(content);
 
     // 1 tracked UI library instance
-    expect(result.imports.trackedUI.count).toBe(1);
+    expect(result.imports.libraries["Sanity UI"].count).toBe(1);
     // Multiple HTML tag instances
     expect(result.imports.nativeHTML.count).toBeGreaterThanOrEqual(4);
     // Total is much larger than just tracked UI library
     expect(result.imports.total.count).toBeGreaterThan(
-      result.imports.trackedUI.count,
+      result.imports.libraries["Sanity UI"].count,
     );
     // tracked UI library is a minority of total
     const trackedUIPct =
-      result.imports.trackedUI.count / result.imports.total.count;
+      result.imports.libraries["Sanity UI"].count / result.imports.total.count;
     expect(trackedUIPct).toBeLessThan(0.5);
   });
 
@@ -1328,10 +1403,10 @@ describe("Native HTML tag counting", () => {
 
     const result = analyzeContent(content);
 
-    expect(result.imports.trackedUI.count).toBe(0);
+    expect(result.imports.libraries["Sanity UI"].count).toBe(0);
     expect(result.imports.nativeHTML.count).toBeGreaterThanOrEqual(3);
     expect(result.imports.total.count).toBe(result.imports.nativeHTML.count);
-    expect(result.hasTrackedUI).toBe(false);
+    expect(result.hasAnyLibrary).toBe(false);
   });
 
   test("file with no HTML and no imports has empty results", () => {
@@ -1343,7 +1418,7 @@ describe("Native HTML tag counting", () => {
 
     const result = analyzeContent(content);
 
-    expect(result.imports.trackedUI.count).toBe(0);
+    expect(result.imports.libraries["Sanity UI"].count).toBe(0);
     expect(result.imports.nativeHTML.count).toBe(0);
     expect(result.imports.total.count).toBe(0);
   });
@@ -1367,7 +1442,7 @@ describe("Native HTML tag counting", () => {
     const result = analyzeContent(content);
 
     // Box(1) = 1 tracked UI library instance
-    expect(result.imports.trackedUI.count).toBe(1);
+    expect(result.imports.libraries["Sanity UI"].count).toBe(1);
     expect(result.imports.nativeHTML.count).toBeGreaterThanOrEqual(3);
     expect(result.imports.nativeHTML.components).toContain("svg");
     expect(result.imports.nativeHTML.components).toContain("path");
@@ -1378,7 +1453,7 @@ describe("Native HTML tag counting", () => {
     const fileResults = [
       {
         imports: {
-          trackedUI: { components: ["Card"], count: 1 },
+          libraries: { "Sanity UI": { components: ["Card"], count: 1 } },
           otherUI: { components: [], count: 0 },
           internal: { components: [], count: 0 },
           nativeHTML: { components: ["div", "div", "span"], count: 3 },
@@ -1386,13 +1461,14 @@ describe("Native HTML tag counting", () => {
         },
         jsxCounts: { Card: 1 },
         jsxCount: 1,
-        hasTrackedUI: true,
+        hasAnyLibrary: true,
+        librariesPresent: new Set(["Sanity UI"]),
         hasInternal: false,
-        usesTrackedUIWithInternal: false,
+        usesLibraryWithInternal: false,
       },
       {
         imports: {
-          trackedUI: { components: ["Box"], count: 1 },
+          libraries: { "Sanity UI": { components: ["Box"], count: 1 } },
           otherUI: { components: [], count: 0 },
           internal: { components: [], count: 0 },
           nativeHTML: { components: ["div", "p"], count: 2 },
@@ -1400,9 +1476,10 @@ describe("Native HTML tag counting", () => {
         },
         jsxCounts: { Box: 1 },
         jsxCount: 1,
-        hasTrackedUI: true,
+        hasAnyLibrary: true,
+        librariesPresent: new Set(["Sanity UI"]),
         hasInternal: false,
-        usesTrackedUIWithInternal: false,
+        usesLibraryWithInternal: false,
       },
     ];
 
@@ -1419,9 +1496,9 @@ describe("Native HTML tag counting", () => {
 
 describe("Edge cases for categorization", () => {
   test("handles scoped packages correctly", () => {
-    expect(categorizeImportSource("@sanity/ui")).toBe("trackedUI");
-    expect(categorizeImportSource("@sanity/ui/something")).toBe("trackedUI");
-    expect(categorizeImportSource("@sanity/icons")).toBe("trackedUI"); // Now in configured importSources
+    expect(categorizeImportSource("@sanity/ui")).toBe("Sanity UI");
+    expect(categorizeImportSource("@sanity/ui/something")).toBe("Sanity UI");
+    expect(categorizeImportSource("@sanity/icons")).toBe("Sanity Icons"); // Now in configured importSources
     expect(categorizeImportSource("@radix-ui/react-dialog")).toBe("otherUI");
     expect(categorizeImportSource("@radix-ui/react-popover")).toBe("otherUI");
   });
@@ -1443,14 +1520,14 @@ describe("Edge cases for categorization", () => {
   });
 
   test("distinguishes @sanity/ui from @sanity/ui/theme", () => {
-    expect(categorizeImportSource("@sanity/ui")).toBe("trackedUI");
-    expect(categorizeImportSource("@sanity/ui/theme")).not.toBe("trackedUI");
-    expect(categorizeImportSource("@sanity/ui/css")).toBe("trackedUI");
+    expect(categorizeImportSource("@sanity/ui")).toBe("Sanity UI");
+    expect(categorizeImportSource("@sanity/ui/theme")).not.toBe("Sanity UI");
+    expect(categorizeImportSource("@sanity/ui/css")).toBe("Sanity UI");
   });
 
   test("@sanity/icons is part of tracked UI (configured in uiLibraries)", () => {
-    expect(categorizeImportSource("@sanity/icons")).toBe("trackedUI");
-    expect(categorizeImportSource("@sanity/icons/")).toBe("trackedUI");
+    expect(categorizeImportSource("@sanity/icons")).toBe("Sanity Icons");
+    expect(categorizeImportSource("@sanity/icons/")).toBe("Sanity Icons");
   });
 });
 
@@ -1504,9 +1581,9 @@ describe("Internal component tracked UI library adoption tracking", () => {
 
     const result = analyzeContent(content);
 
-    expect(result.hasTrackedUI).toBe(true);
+    expect(result.hasAnyLibrary).toBe(true);
     expect(result.hasInternal).toBe(true);
-    expect(result.usesTrackedUIWithInternal).toBe(true);
+    expect(result.usesLibraryWithInternal).toBe(true);
   });
 
   test("correctly identifies file with internal imports NOT using tracked UI", () => {
@@ -1525,9 +1602,9 @@ describe("Internal component tracked UI library adoption tracking", () => {
 
     const result = analyzeContent(content);
 
-    expect(result.hasTrackedUI).toBe(false);
+    expect(result.hasAnyLibrary).toBe(false);
     expect(result.hasInternal).toBe(true);
-    expect(result.usesTrackedUIWithInternal).toBe(false);
+    expect(result.usesLibraryWithInternal).toBe(false);
   });
 
   test("correctly identifies file with tracked UI but no internal imports", () => {
@@ -1547,9 +1624,9 @@ describe("Internal component tracked UI library adoption tracking", () => {
 
     const result = analyzeContent(content);
 
-    expect(result.hasTrackedUI).toBe(true);
+    expect(result.hasAnyLibrary).toBe(true);
     expect(result.hasInternal).toBe(false);
-    expect(result.usesTrackedUIWithInternal).toBe(false);
+    expect(result.usesLibraryWithInternal).toBe(false);
   });
 
   test("aggregates internal adoption metrics correctly", () => {
@@ -1557,7 +1634,7 @@ describe("Internal component tracked UI library adoption tracking", () => {
       {
         // File 1: Has both internal and tracked UI library
         imports: {
-          trackedUI: { components: ["Button"], count: 1 },
+          libraries: { "Sanity UI": { components: ["Button"], count: 1 } },
           otherUI: { components: [], count: 0 },
           internal: { components: ["CustomInput"], count: 1 },
           nativeHTML: { components: [], count: 0 },
@@ -1565,14 +1642,15 @@ describe("Internal component tracked UI library adoption tracking", () => {
         },
         jsxCounts: { Button: 1, CustomInput: 1 },
         jsxCount: 2,
-        hasTrackedUI: true,
+        hasAnyLibrary: true,
+        librariesPresent: new Set(["Sanity UI"]),
         hasInternal: true,
-        usesTrackedUIWithInternal: true,
+        usesLibraryWithInternal: true,
       },
       {
         // File 2: Has internal but NOT tracked UI library
         imports: {
-          trackedUI: { components: [], count: 0 },
+          libraries: { "Sanity UI": { components: [], count: 0 } },
           otherUI: { components: [], count: 0 },
           internal: { components: ["LocalWidget"], count: 1 },
           nativeHTML: { components: [], count: 0 },
@@ -1580,14 +1658,17 @@ describe("Internal component tracked UI library adoption tracking", () => {
         },
         jsxCounts: { LocalWidget: 1 },
         jsxCount: 1,
-        hasTrackedUI: false,
+        hasAnyLibrary: false,
+        librariesPresent: new Set(),
         hasInternal: true,
-        usesTrackedUIWithInternal: false,
+        usesLibraryWithInternal: false,
       },
       {
         // File 3: Has tracked UI library and internal
         imports: {
-          trackedUI: { components: ["Card", "Text"], count: 2 },
+          libraries: {
+            "Sanity UI": { components: ["Card", "Text"], count: 2 },
+          },
           otherUI: { components: [], count: 0 },
           internal: { components: ["FormField"], count: 1 },
           nativeHTML: { components: [], count: 0 },
@@ -1598,14 +1679,15 @@ describe("Internal component tracked UI library adoption tracking", () => {
         },
         jsxCounts: { Card: 1, Text: 1, FormField: 1 },
         jsxCount: 3,
-        hasTrackedUI: true,
+        hasAnyLibrary: true,
+        librariesPresent: new Set(["Sanity UI"]),
         hasInternal: true,
-        usesTrackedUIWithInternal: true,
+        usesLibraryWithInternal: true,
       },
       {
         // File 4: No internal, only tracked UI library
         imports: {
-          trackedUI: { components: ["Flex"], count: 1 },
+          libraries: { "Sanity UI": { components: ["Flex"], count: 1 } },
           otherUI: { components: [], count: 0 },
           internal: { components: [], count: 0 },
           nativeHTML: { components: [], count: 0 },
@@ -1613,9 +1695,10 @@ describe("Internal component tracked UI library adoption tracking", () => {
         },
         jsxCounts: { Flex: 1 },
         jsxCount: 1,
-        hasTrackedUI: true,
+        hasAnyLibrary: true,
+        librariesPresent: new Set(["Sanity UI"]),
         hasInternal: false,
-        usesTrackedUIWithInternal: false,
+        usesLibraryWithInternal: false,
       },
     ];
 
