@@ -363,9 +363,11 @@ function normalizeValue(classified) {
 
 /**
  * @typedef {object} ComponentInstance
- * @property {string}                     component - Original tracked UI library name.
+ * @property {string}                     component   - Original tracked UI library name.
  * @property {Array<{ name: string, value: string }>} props - Parsed props.
- * @property {number}                     line      - 1-based line number in the source file.
+ * @property {number}                     line        - 1-based line number in the source file.
+ * @property {number}                     startOffset - Character offset of the opening `<`.
+ * @property {number}                     endOffset   - Character offset just past the closing `>` of the opening tag.
  */
 
 /**
@@ -409,7 +411,13 @@ function analyzeFileContent(content) {
     const props = parseProps(tagBody);
 
     const line = lineNumberAt(content, openMatch.index);
-    instances.push({ component: original, props, line });
+    instances.push({
+      component: original,
+      props,
+      line,
+      startOffset: openMatch.index,
+      endOffset: tagEnd + 1,
+    });
   }
 
   return { importMap, instances };
@@ -439,9 +447,10 @@ function escapeRegex(s) {
 
 /**
  * @typedef {object} InstanceReference
- * @property {string} file     - File path relative to the codebase root.
- * @property {number} line     - 1-based line number.
- * @property {string} codebase - Which codebase the file belongs to.
+ * @property {string} file       - File path relative to the codebase root.
+ * @property {number} line       - 1-based line number.
+ * @property {string} codebase   - Which codebase the file belongs to.
+ * @property {string} sourceCode - The JSX opening tag source, collapsed to a single line.
  */
 
 /**
@@ -548,14 +557,30 @@ function applyAutoDetectedDefaults(reports) {
 }
 
 /**
+ * Collapse a JSX opening-tag source to a single line with normalised
+ * whitespace.  Newlines are replaced with spaces and runs of
+ * whitespace are collapsed to a single space.
+ *
+ * @param {string} content     - Full file content.
+ * @param {number} startOffset - Character offset of the opening `<`.
+ * @param {number} endOffset   - Character offset just past the closing `>`.
+ * @returns {string} Single-line source snippet.
+ */
+function extractSourceSnippet(content, startOffset, endOffset) {
+  return content.slice(startOffset, endOffset).replace(/\s+/g, " ").trim();
+}
+
+/**
  * Merge one file's results into the global per-component reports.
  *
  * @param {Object<string, ComponentReport>} reports    - Keyed by component name.
  * @param {FileResult}                      fileResult
  * @param {string}                          codebase
  * @param {string}                          [filePath] - Path relative to codebase root (for references).
+ * @param {string}                          [content]  - Full file content.  When provided, each
+ *   reference will include a `sourceCode` snippet of the JSX opening tag.
  */
-function mergeFileResult(reports, fileResult, codebase, filePath) {
+function mergeFileResult(reports, fileResult, codebase, filePath, content) {
   // Track imports: each original component imported in this file = +1 import
   const importedOriginals = new Set(Object.values(fileResult.importMap));
   for (const original of importedOriginals) {
@@ -575,11 +600,24 @@ function mergeFileResult(reports, fileResult, codebase, filePath) {
     incr(report.codebaseInstances, codebase);
 
     if (filePath) {
-      report.references.push({
+      const ref = {
         file: filePath,
         line: instance.line,
         codebase,
-      });
+        sourceCode: "",
+      };
+      if (
+        content &&
+        instance.startOffset != null &&
+        instance.endOffset != null
+      ) {
+        ref.sourceCode = extractSourceSnippet(
+          content,
+          instance.startOffset,
+          instance.endOffset,
+        );
+      }
+      report.references.push(ref);
     }
 
     for (const prop of instance.props) {
@@ -934,7 +972,7 @@ async function analyzeCodebase(codebase, reports) {
     const result = analyzeFileContent(content);
     // Store a relative path from the codebase root for readability
     const relPath = path.relative(basePath, file);
-    mergeFileResult(reports, result, codebase, relPath);
+    mergeFileResult(reports, result, codebase, relPath, content);
     analyzed++;
   }
 
@@ -1065,6 +1103,9 @@ module.exports = {
 
   // Default detection (post-aggregation)
   applyAutoDetectedDefaults,
+
+  // Source extraction
+  extractSourceSnippet,
 
   // Report generation
   buildComponentJson,

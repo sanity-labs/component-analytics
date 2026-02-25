@@ -42,6 +42,7 @@ const {
   analyzeFileContent,
   classifyValue,
   normalizeValue,
+  extractSourceSnippet,
 } = require("../per-component/analyze-per-component");
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -50,10 +51,11 @@ const {
 
 /**
  * @typedef {object} ComboInstance
- * @property {string}   codebase - Which codebase.
- * @property {string}   file     - Relative file path.
- * @property {number}   line     - 1-based line number.
- * @property {string[]} values   - Prop values in the same order as the combo's `props` array.
+ * @property {string}   codebase   - Which codebase.
+ * @property {string}   file       - Relative file path.
+ * @property {number}   line       - 1-based line number.
+ * @property {string[]} values     - Prop values in the same order as the combo's `props` array.
+ * @property {string}   sourceCode - The JSX opening tag source, collapsed to a single line.
  */
 
 /**
@@ -148,11 +150,18 @@ async function analyzeCodebaseForCombo(combo, codebase) {
       const path = require("path");
       const relPath = path.relative(codebasePath, filePath);
 
+      const sourceCode = extractSourceSnippet(
+        content,
+        inst.startOffset,
+        inst.endOffset,
+      );
+
       instances.push({
         codebase,
         file: relPath,
         line: inst.line,
         values,
+        sourceCode,
       });
     }
   }
@@ -396,6 +405,7 @@ function generateJson(result) {
       props: Object.fromEntries(
         result.props.map((p, i) => [p, inst.values[i]]),
       ),
+      sourceCode: inst.sourceCode,
     })),
   };
 
