@@ -339,6 +339,26 @@ function identifyComponentLibrary(componentName) {
  */
 const OTHER_UI_PATTERNS = CONFIG.otherUIPatterns || [];
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// DERIVED: PROP COMBINATIONS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Configured prop-combination reports.
+ *
+ * Each entry specifies a component and a set of props whose value
+ * combinations should be cross-tabulated across all codebases.
+ *
+ * Derived from `config.propCombos`.  Defaults to an empty array when
+ * the config section is absent.
+ *
+ * @type {import("./config-schema").PropComboEntry[]}
+ */
+const PROP_COMBOS = (CONFIG.propCombos || []).map((entry) => ({
+  component: entry.component,
+  props: entry.props || [],
+}));
+
 /**
  * Test whether an import source path belongs to a third-party UI
  * library (not the tracked one, not internal).
@@ -584,6 +604,9 @@ module.exports = {
   // Other UI classification
   OTHER_UI_PATTERNS,
   isOtherUISource,
+
+  // Prop combinations
+  PROP_COMBOS,
 
   // File scanning
   FILE_PATTERN,

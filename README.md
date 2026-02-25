@@ -112,6 +112,30 @@ otherUIPatterns: [
 ],
 ```
 
+### Prop Combinations
+
+Cross-tabulate prop value combinations on specific components to see which pairings actually occur in practice. Each entry names a tracked component and two or more props to combine:
+
+```js
+propCombos: [
+  { component: "Text", props: ["weight", "size"] },
+  { component: "Button", props: ["tone", "mode"] },
+  { component: "Card", props: ["tone", "padding", "radius"] },
+  { component: "Heading", props: ["size", "as"] },
+],
+```
+
+| Field | Purpose |
+|-------|---------|
+| `component` | A PascalCase component name from one of your `uiLibraries` entries |
+| `props` | Two or more prop names whose value tuples will be counted |
+
+The report counts every unique combination of values across all codebases. Instances where none of the listed props are set are excluded. Run with:
+
+```
+npm run analyze:prop-combos
+```
+
 ## Reports
 
 All reports are written to the `reports/` directory. The structure is designed to be self-explanatory:
@@ -123,18 +147,18 @@ reports/
 │   │   ├── all-components.json     #     Raw React Scanner JSON
 │   │   ├── summary.csv             #     Component name, instance count, top prop
 │   │   ├── detailed.csv            #     Every component × prop × value
-│   │   └── stats.txt               #     Human-readable statistics
+│   │   └── stats.md                #     Human-readable statistics
 │   └── wrappers/                   #   Only internal UI wrapper components
 │       ├── wrappers.json           #     Raw React Scanner JSON
 │       ├── summary.csv             #     Wrapper component summary
 │       ├── detailed.csv            #     Wrapper component × prop × value
-│       └── stats.txt               #     Human-readable statistics
+│       └── stats.md                #     Human-readable statistics
 │
 ├── components/                     # Tracked UI library — per-component detail
-│   ├── summary.txt                 #   Ranked table of all tracked components
+│   ├── summary.md                  #   Ranked table of all tracked components
 │   ├── summary.csv                 #   One row per component (instances, imports, props)
 │   ├── summary.json                #   Machine-readable summary
-│   ├── detected-defaults.txt       #   Auto-detected default prop values with evidence
+│   ├── detected-defaults.md        #   Auto-detected default prop values with evidence
 │   ├── detected-defaults.json      #   Machine-readable detected defaults
 │   └── detail/                     #   One JSON per component
 │       ├── Button.json             #     Imports, instances, props, values, references
@@ -142,27 +166,38 @@ reports/
 │       └── …
 │
 ├── sources/                        # JSX element source classification
-│   ├── report.txt                  #   Which JSX elements come from the tracked library
+│   ├── report.md                   #   Which JSX elements come from the tracked library
 │   ├── report.csv                  #     vs internal code vs native HTML vs other UI
 │   └── report.json
 │
 ├── html-tags/                      # Native HTML/SVG tag usage
-│   ├── report.txt                  #   Every <div>, <span>, <svg>, etc. in JSX
+│   ├── report.md                   #   Every <div>, <span>, <svg>, etc. in JSX
 │   ├── report.csv                  #     categorized by purpose (layout, text, form, …)
 │   └── report.json
 │
 ├── customizations/                 # Inline style= and styled() overrides
-│   ├── report.txt                  #   How often tracked components are customized
+│   ├── report.md                   #   How often tracked components are customized
 │   ├── report.csv                  #     with inline styles or styled-components wrappers
 │   └── report.json
 │
+├── prop-combos/                    # Prop value combination cross-tabulation
+│   ├── Text/                       #   One directory per component
+│   │   ├── Text-weight-size-combo.md
+│   │   ├── Text-weight-size-combo.csv
+│   │   └── Text-weight-size-combo.json
+│   ├── Button/
+│   │   ├── Button-tone-mode-combo.md
+│   │   ├── Button-tone-mode-combo.csv
+│   │   └── Button-tone-mode-combo.json
+│   └── …/                          #   File pattern: <Component>-<prop1>-<prop2>-combo.*
+│
 ├── prop-surface/                   # UI prop character footprint
-│   ├── report.txt                  #   What percentage of UI-file characters are
+│   ├── report.md                   #   What percentage of UI-file characters are
 │   ├── report.csv                  #     tracked component props/attributes
 │   └── report.json
 │
 └── line-ownership/                 # UI library line ownership
-    ├── report.txt                  #   What percentage of UI-file lines belong to
+    ├── report.md                   #   What percentage of UI-file lines belong to
     ├── report.csv                  #     tracked library imports and JSX tags
     └── report.json
 ```
@@ -179,6 +214,7 @@ reports/
 | **`sources/report.*`** | What percentage of JSX elements come from the tracked library vs internal code vs raw HTML? |
 | **`html-tags/report.*`** | How much raw HTML (`<div>`, `<span>`, etc.) is used instead of tracked UI components? |
 | **`customizations/report.*`** | How often are tracked components overridden with `style={}` or `styled()`? |
+| **`prop-combos/report.*`** | Which prop value combinations actually occur (e.g. `weight` × `size` on `<Text>`)? Configured via `propCombos` in the config file. |
 | **`prop-surface/report.*`** | What fraction of UI-file characters are tracked component props? |
 | **`line-ownership/report.*`** | What fraction of UI-file lines are tracked library imports + JSX tags? |
 

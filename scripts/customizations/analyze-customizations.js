@@ -569,7 +569,7 @@ function flattenComponentCounts(byComponent) {
 }
 
 /**
- * Format a "by component" table for the text report.
+ * Format a "by component" table for the markdown report.
  *
  * Each row shows the component name, count, and top 5 properties.
  *
@@ -583,26 +583,23 @@ function formatComponentTable(heading, byComponent, propColumnName) {
   if (sorted.length === 0) return [];
 
   const lines = [];
-  lines.push(`  ${heading}`);
-  lines.push(
-    "  " + "Component".padEnd(24) + "Count".padStart(8) + "  " + propColumnName,
-  );
-  lines.push("  " + "-".repeat(70));
+  lines.push(`#### ${heading}`);
+  lines.push("");
+  lines.push(`| Component | Count | ${propColumnName} |`);
+  lines.push(`| --- | ---: | --- |`);
 
   for (const [comp, count] of sorted) {
     const topProps = sortByCount(byComponent[comp].properties)
       .slice(0, 5)
       .map(([p, c]) => `${p}(${c})`)
       .join(", ");
-    lines.push(
-      "  " + comp.padEnd(24) + String(count).padStart(8) + "  " + topProps,
-    );
+    lines.push(`| ${comp} | ${count} | ${topProps} |`);
   }
   return lines;
 }
 
 /**
- * Format a "top properties" table for the text report.
+ * Format a "top properties" table for the markdown report.
  *
  * @param {string}                  heading - Section heading.
  * @param {Object<string, number>}  props   - Property → count.
@@ -614,17 +611,18 @@ function formatPropertyTable(heading, props, limit = 20) {
   if (sorted.length === 0) return [];
 
   const lines = [];
-  lines.push(`  ${heading}`);
-  lines.push("  " + "Property".padEnd(30) + "Count".padStart(8));
-  lines.push("  " + "-".repeat(40));
+  lines.push(`#### ${heading}`);
+  lines.push("");
+  lines.push("| Property | Count |");
+  lines.push("| --- | ---: |");
   for (const [prop, count] of sorted) {
-    lines.push("  " + prop.padEnd(30) + String(count).padStart(8));
+    lines.push(`| ${prop} | ${count} |`);
   }
   return lines;
 }
 
 /**
- * Format a single codebase section of the text report.
+ * Format a single codebase section of the markdown report.
  *
  * @param {string}                        codebase
  * @param {AggregatedCustomizationResult} data
@@ -632,20 +630,20 @@ function formatPropertyTable(heading, props, limit = 20) {
  */
 function formatCodebaseSection(codebase, data) {
   const lines = [];
-  lines.push("─".repeat(80));
-  lines.push(`  CODEBASE: ${codebase.toUpperCase()}`);
-  lines.push("─".repeat(80));
+  lines.push(`## ${codebase}`);
   lines.push("");
-  lines.push(`  Files analyzed:            ${data.totalFiles}`);
-  lines.push(`  Files with customizations: ${data.filesWithCustomizations}`);
-  lines.push(`  Total inline style= :      ${data.totalInlineStyles}`);
-  lines.push(`  Total styled() wraps:      ${data.totalStyledUsages}`);
-  lines.push(`  Total customizations:      ${data.totalCustomizations}`);
+  lines.push(`- **Files analyzed:** ${data.totalFiles}`);
+  lines.push(
+    `- **Files with customizations:** ${data.filesWithCustomizations}`,
+  );
+  lines.push(`- **Total inline style=:** ${data.totalInlineStyles}`);
+  lines.push(`- **Total styled() wraps:** ${data.totalStyledUsages}`);
+  lines.push(`- **Total customizations:** ${data.totalCustomizations}`);
   lines.push("");
 
   lines.push(
     ...formatComponentTable(
-      "INLINE STYLES BY COMPONENT",
+      "Inline Styles by Component",
       data.inlineStylesByComponent,
       "Top Properties",
     ),
@@ -654,7 +652,7 @@ function formatCodebaseSection(codebase, data) {
 
   lines.push(
     ...formatComponentTable(
-      "STYLED() WRAPS BY COMPONENT",
+      "styled() Wraps by Component",
       data.styledByComponent,
       "Top CSS Properties",
     ),
@@ -663,7 +661,7 @@ function formatCodebaseSection(codebase, data) {
 
   lines.push(
     ...formatPropertyTable(
-      "TOP INLINE STYLE PROPERTIES",
+      "Top Inline Style Properties",
       data.inlineStyleProperties,
     ),
   );
@@ -671,7 +669,7 @@ function formatCodebaseSection(codebase, data) {
 
   lines.push(
     ...formatPropertyTable(
-      "TOP STYLED() CSS PROPERTIES",
+      "Top styled() CSS Properties",
       data.styledProperties,
     ),
   );
@@ -692,11 +690,12 @@ function formatSimpleComponentTable(heading, counts) {
   if (sorted.length === 0) return [];
 
   const lines = [];
-  lines.push(`  ${heading}`);
-  lines.push("  " + "Component".padEnd(24) + "Count".padStart(8));
-  lines.push("  " + "-".repeat(34));
+  lines.push(`#### ${heading}`);
+  lines.push("");
+  lines.push("| Component | Count |");
+  lines.push("| --- | ---: |");
   for (const [comp, count] of sorted) {
-    lines.push("  " + comp.padEnd(24) + String(count).padStart(8));
+    lines.push(`| ${comp} | ${count} |`);
   }
   return lines;
 }
@@ -709,9 +708,7 @@ function formatSimpleComponentTable(heading, counts) {
  */
 function formatAggregateSection(liveResults) {
   const lines = [];
-  lines.push("═".repeat(80));
-  lines.push("  AGGREGATE - ALL CODEBASES COMBINED");
-  lines.push("═".repeat(80));
+  lines.push("## Aggregate — All Codebases Combined");
   lines.push("");
 
   let grandInline = 0;
@@ -733,14 +730,14 @@ function formatAggregateSection(liveResults) {
     }
   }
 
-  lines.push(`  Total inline style= :  ${grandInline}`);
-  lines.push(`  Total styled() wraps:  ${grandStyled}`);
-  lines.push(`  Grand total:           ${grandInline + grandStyled}`);
+  lines.push(`- **Total inline style=:** ${grandInline}`);
+  lines.push(`- **Total styled() wraps:** ${grandStyled}`);
+  lines.push(`- **Grand total:** ${grandInline + grandStyled}`);
   lines.push("");
 
   lines.push(
     ...formatSimpleComponentTable(
-      "INLINE STYLES BY COMPONENT (ALL CODEBASES)",
+      "Inline Styles by Component (All Codebases)",
       allInlineByComp,
     ),
   );
@@ -748,30 +745,26 @@ function formatAggregateSection(liveResults) {
 
   lines.push(
     ...formatSimpleComponentTable(
-      "STYLED() WRAPS BY COMPONENT (ALL CODEBASES)",
+      "styled() Wraps by Component (All Codebases)",
       allStyledByComp,
     ),
   );
   if (Object.keys(allStyledByComp).length > 0) lines.push("");
 
-  lines.push("═".repeat(80));
-  lines.push("");
   return lines;
 }
 
 /**
- * Generate the full plain-text report.
+ * Generate the full markdown report.
  *
  * @param {Object<string, AggregatedCustomizationResult | null>} results
  * @returns {string}
  */
 function generateTextReport(results) {
   const lines = [];
-  lines.push("═".repeat(80));
   lines.push(
-    `  ${UI_LIBRARY_NAMES.toUpperCase()} CUSTOMIZATION ANALYSIS - INLINE STYLES & styled()`,
+    `# ${UI_LIBRARY_NAMES} Customization Analysis — Inline Styles & styled()`,
   );
-  lines.push("═".repeat(80));
   lines.push("");
 
   for (const [codebase, data] of Object.entries(results)) {

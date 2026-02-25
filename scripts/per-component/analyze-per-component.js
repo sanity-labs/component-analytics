@@ -795,11 +795,7 @@ function generateSummaryText(reports) {
 
   const lines = [];
 
-  lines.push("═".repeat(90));
-  lines.push(
-    `  PER-COMPONENT ${UI_LIBRARY_NAMES.toUpperCase()} ANALYSIS — SUMMARY`,
-  );
-  lines.push("═".repeat(90));
+  lines.push(`# Per-Component ${UI_LIBRARY_NAMES} Analysis — Summary`);
   lines.push("");
 
   let totalImports = 0;
@@ -811,29 +807,19 @@ function generateSummaryText(reports) {
     totalDefaultUsages += r.totalDefaultUsages;
   }
 
-  lines.push(`  Components analysed:   ${sorted.length}`);
-  lines.push(`  Total imports:         ${totalImports}`);
-  lines.push(`  Total JSX instances:   ${totalInstances}`);
+  lines.push(`- **Components analysed:** ${sorted.length}`);
+  lines.push(`- **Total imports:** ${totalImports}`);
+  lines.push(`- **Total JSX instances:** ${totalInstances}`);
   lines.push(
-    `  Default value usages:  ${totalDefaultUsages}  (props explicitly set to their default)`,
+    `- **Default value usages:** ${totalDefaultUsages} (props explicitly set to their default)`,
   );
   lines.push("");
 
   // Ranked table
   lines.push(
-    "  " +
-      "Rank".padEnd(6) +
-      "Component".padEnd(30) +
-      "Imports".padStart(9) +
-      "Instances".padStart(11) +
-      "  " +
-      "Props".padStart(7) +
-      "  " +
-      "Avg P/Use".padStart(10) +
-      "  " +
-      "Defaults".padStart(9),
+    "| Rank | Component | Imports | Instances | Props | Avg P/Use | Defaults |",
   );
-  lines.push("  " + "-".repeat(87));
+  lines.push("| ---: | --- | ---: | ---: | ---: | ---: | ---: |");
 
   for (let i = 0; i < sorted.length; i++) {
     const r = sorted[i];
@@ -848,17 +834,7 @@ function generateSummaryText(reports) {
         : "0.00";
 
     lines.push(
-      "  " +
-        String(i + 1).padEnd(6) +
-        r.component.padEnd(30) +
-        String(r.totalImports).padStart(9) +
-        String(r.totalInstances).padStart(11) +
-        "  " +
-        String(uniqueProps).padStart(7) +
-        "  " +
-        avgProps.padStart(10) +
-        "  " +
-        String(r.totalDefaultUsages).padStart(9),
+      `| ${i + 1} | ${r.component} | ${r.totalImports} | ${r.totalInstances} | ${uniqueProps} | ${avgProps} | ${r.totalDefaultUsages} |`,
     );
   }
 
@@ -867,11 +843,10 @@ function generateSummaryText(reports) {
   // Per-component detail (top 20 by instances)
   const topComponents = sorted.slice(0, 20);
   for (const r of topComponents) {
-    lines.push("─".repeat(90));
-    lines.push(`  ${r.component}`);
-    lines.push("─".repeat(90));
+    lines.push(`## ${r.component}`);
+    lines.push("");
     lines.push(
-      `  Imports: ${r.totalImports}   Instances: ${r.totalInstances}   Unique props: ${Object.keys(r.props).length}`,
+      `- **Imports:** ${r.totalImports} | **Instances:** ${r.totalInstances} | **Unique props:** ${Object.keys(r.props).length}`,
     );
     lines.push("");
 
@@ -882,23 +857,13 @@ function generateSummaryText(reports) {
     );
 
     if (propsSorted.length === 0) {
-      lines.push("  (no props used)");
+      lines.push("*(no props used)*");
       lines.push("");
       continue;
     }
 
-    lines.push(
-      "  " +
-        "Prop".padEnd(28) +
-        "Usages".padStart(8) +
-        "  " +
-        "Defaults".padStart(9) +
-        "  " +
-        "% of instances".padStart(15) +
-        "  " +
-        "Top values",
-    );
-    lines.push("  " + "-".repeat(95));
+    lines.push("| Prop | Usages | Defaults | % of Instances | Top Values |");
+    lines.push("| --- | ---: | ---: | ---: | --- |");
 
     for (const [propName, usages] of propsSorted.slice(0, 20)) {
       const bucket = r.props[propName];
@@ -911,15 +876,7 @@ function generateSummaryText(reports) {
         .join(", ");
 
       lines.push(
-        "  " +
-          propName.padEnd(28) +
-          String(usages).padStart(8) +
-          "  " +
-          defaultStr.padStart(9) +
-          "  " +
-          (percentage + "%").padStart(15) +
-          "  " +
-          topVals,
+        `| ${propName} | ${usages} | ${defaultStr} | ${percentage}% | ${topVals} |`,
       );
     }
 
@@ -927,14 +884,11 @@ function generateSummaryText(reports) {
     if (r.totalDefaultUsages > 0) {
       lines.push("");
       lines.push(
-        `  ⚠ ${r.totalDefaultUsages} prop usages explicitly set to their default value`,
+        `> ⚠ ${r.totalDefaultUsages} prop usages explicitly set to their default value`,
       );
     }
     lines.push("");
   }
-
-  lines.push("═".repeat(90));
-  lines.push("");
 
   return lines.join("\n");
 }
@@ -1036,7 +990,7 @@ async function main() {
   fs.writeFileSync(path.join(outDir, "summary.json"), summaryJSON);
 
   const summaryText = generateSummaryText(reports);
-  fs.writeFileSync(path.join(outDir, "summary.txt"), summaryText);
+  fs.writeFileSync(path.join(outDir, "summary.md"), summaryText);
 
   console.log(`\n✅ ${writtenCount} component reports written`);
   console.log("✅ Summary CSV written");

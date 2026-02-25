@@ -528,39 +528,33 @@ async function analyzeCodebase(codebase) {
 /**
  * Generate comparison report
  * @param {object} results - Results object keyed by codebase name
- * @returns {string} - Formatted text report
+ * @returns {string} - Formatted markdown report
  */
 function generateReport(results) {
   const reportLines = [];
 
-  reportLines.push("═".repeat(80));
   reportLines.push(
-    `       UI COMPONENT SOURCE ANALYSIS - ${UI_LIBRARY_NAMES.toUpperCase()} vs OTHER COMPONENTS`,
+    `# UI Component Source Analysis — ${UI_LIBRARY_NAMES} vs Other Components`,
   );
-  reportLines.push("═".repeat(80));
   reportLines.push("");
   reportLines.push(
-    "NOTE: All numbers are JSX element instances, not import counts.",
+    `> **NOTE:** All numbers are JSX element instances, not import counts.`,
   );
   reportLines.push(
-    `      ${UI_LIBRARY_NAMES} is the tracked UI library (configured in component-analytics.config.js).`,
+    `> ${UI_LIBRARY_NAMES} is the tracked UI library (configured in component-analytics.config.js).`,
   );
   reportLines.push(
-    `      Native HTML tag instances count against ${UI_LIBRARY_NAMES} adoption.`,
+    `> Native HTML tag instances count against ${UI_LIBRARY_NAMES} adoption.`,
   );
   reportLines.push("");
 
   // Summary table
-  reportLines.push("CODEBASE SUMMARY (JSX INSTANCES)");
-  reportLines.push("-".repeat(100));
-  const libLabel =
-    UI_LIBRARY_NAMES.length <= 9
-      ? UI_LIBRARY_NAMES.padEnd(9)
-      : UI_LIBRARY_NAMES.slice(0, 9);
+  reportLines.push("## Codebase Summary (JSX Instances)");
+  reportLines.push("");
   reportLines.push(
-    `Codebase    | Files    | ${libLabel} | Other UI  | Internal  | HTML Tags | Total     | % ${UI_LIBRARY_NAMES}`,
+    `| Codebase | Files | ${UI_LIBRARY_NAMES} | Other UI | Internal | HTML Tags | Total | % ${UI_LIBRARY_NAMES} |`,
   );
-  reportLines.push("-".repeat(100));
+  reportLines.push("| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |");
 
   let grandTotal = {
     files: 0,
@@ -585,7 +579,7 @@ function generateReport(results) {
       totalCount > 0 ? ((trackedUICount / totalCount) * 100).toFixed(1) : "0.0";
 
     reportLines.push(
-      `${codebase.padEnd(11)} | ${data.fileCount.toString().padStart(8)} | ${trackedUICount.toString().padStart(9)} | ${otherUICount.toString().padStart(9)} | ${internalCount.toString().padStart(9)} | ${nativeHTMLCount.toString().padStart(9)} | ${totalCount.toString().padStart(9)} | ${trackedUIPercent.padStart(10)}%`,
+      `| ${codebase} | ${data.fileCount} | ${trackedUICount} | ${otherUICount} | ${internalCount} | ${nativeHTMLCount} | ${totalCount} | ${trackedUIPercent}% |`,
     );
 
     grandTotal.files += data.fileCount;
@@ -599,20 +593,17 @@ function generateReport(results) {
       data.filesWithInternalUsingTrackedUI;
   }
 
-  reportLines.push("-".repeat(100));
   const grandTrackedUIPercent =
     grandTotal.total > 0
       ? ((grandTotal.trackedUI / grandTotal.total) * 100).toFixed(1)
       : "0.0";
   reportLines.push(
-    `${"TOTAL".padEnd(11)} | ${grandTotal.files.toString().padStart(8)} | ${grandTotal.trackedUI.toString().padStart(9)} | ${grandTotal.otherUI.toString().padStart(9)} | ${grandTotal.internal.toString().padStart(9)} | ${grandTotal.nativeHTML.toString().padStart(9)} | ${grandTotal.total.toString().padStart(9)} | ${grandTrackedUIPercent.padStart(10)}%`,
+    `| **TOTAL** | **${grandTotal.files}** | **${grandTotal.trackedUI}** | **${grandTotal.otherUI}** | **${grandTotal.internal}** | **${grandTotal.nativeHTML}** | **${grandTotal.total}** | **${grandTrackedUIPercent}%** |`,
   );
   reportLines.push("");
 
   // Internal components using tracked UI library section
-  reportLines.push("═".repeat(80));
-  reportLines.push("INTERNAL COMPONENTS USING TRACKED UI LIBRARY");
-  reportLines.push("═".repeat(80));
+  reportLines.push("## Internal Components Using Tracked UI Library");
   reportLines.push("");
   reportLines.push(
     "This measures what percentage of files with internal/local component imports",
@@ -621,11 +612,10 @@ function generateReport(results) {
     "also use tracked UI library components (indicating tracked UI library adoption in custom components).",
   );
   reportLines.push("");
-  reportLines.push("-".repeat(80));
   reportLines.push(
-    "Codebase    | Files w/Internal | Using tracked UI library | % Using tracked UI library",
+    "| Codebase | Files w/Internal | Using Tracked UI Library | % Using Tracked UI Library |",
   );
-  reportLines.push("-".repeat(80));
+  reportLines.push("| --- | ---: | ---: | ---: |");
 
   for (const [codebase, data] of Object.entries(results)) {
     if (!data) continue;
@@ -638,11 +628,10 @@ function generateReport(results) {
         : "0.0";
 
     reportLines.push(
-      `${codebase.padEnd(11)} | ${filesWithInternal.toString().padStart(16)} | ${filesUsingTrackedUI.toString().padStart(15)} | ${percent.padStart(16)}%`,
+      `| ${codebase} | ${filesWithInternal} | ${filesUsingTrackedUI} | ${percent}% |`,
     );
   }
 
-  reportLines.push("-".repeat(80));
   const grandInternalPercent =
     grandTotal.filesWithInternal > 0
       ? (
@@ -652,7 +641,7 @@ function generateReport(results) {
         ).toFixed(1)
       : "0.0";
   reportLines.push(
-    `${"TOTAL".padEnd(11)} | ${grandTotal.filesWithInternal.toString().padStart(16)} | ${grandTotal.filesWithInternalUsingTrackedUI.toString().padStart(15)} | ${grandInternalPercent.padStart(16)}%`,
+    `| **TOTAL** | **${grandTotal.filesWithInternal}** | **${grandTotal.filesWithInternalUsingTrackedUI}** | **${grandInternalPercent}%** |`,
   );
   reportLines.push("");
 
@@ -661,98 +650,88 @@ function generateReport(results) {
     if (!data) continue;
 
     reportLines.push("");
-    reportLines.push("═".repeat(80));
-    reportLines.push(`${codebase.toUpperCase()} - DETAILED BREAKDOWN`);
-    reportLines.push("═".repeat(80));
+    reportLines.push(`## ${codebase} — Detailed Breakdown`);
+    reportLines.push("");
 
     // Top tracked UI library components (now includes icons)
+    reportLines.push(`### Top 20 ${UI_LIBRARY_NAMES} Components`);
     reportLines.push("");
-    reportLines.push(`TOP 20 ${UI_LIBRARY_NAMES.toUpperCase()} COMPONENTS`);
-    reportLines.push("-".repeat(50));
 
     const trackedUISorted = Object.entries(data.trackedUI.components)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 20);
 
     if (trackedUISorted.length > 0) {
-      reportLines.push("Rank | Component              | Instances");
-      reportLines.push("-".repeat(50));
+      reportLines.push("| Rank | Component | Instances |");
+      reportLines.push("| ---: | --- | ---: |");
       trackedUISorted.forEach(([comp, count], index) => {
-        reportLines.push(
-          `${(index + 1).toString().padStart(4)} | ${comp.padEnd(22)} | ${count.toString().padStart(12)}`,
-        );
+        reportLines.push(`| ${index + 1} | ${comp} | ${count} |`);
       });
     } else {
-      reportLines.push("No tracked UI library components found");
+      reportLines.push("*No tracked UI library components found*");
     }
 
     // Top Other UI components
     reportLines.push("");
-    reportLines.push("TOP 20 OTHER UI LIBRARY COMPONENTS");
-    reportLines.push("-".repeat(50));
+    reportLines.push("### Top 20 Other UI Library Components");
+    reportLines.push("");
 
     const otherUISorted = Object.entries(data.otherUI.components)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 20);
 
     if (otherUISorted.length > 0) {
-      reportLines.push("Rank | Component              | Instances");
-      reportLines.push("-".repeat(50));
+      reportLines.push("| Rank | Component | Instances |");
+      reportLines.push("| ---: | --- | ---: |");
       otherUISorted.forEach(([comp, count], index) => {
-        reportLines.push(
-          `${(index + 1).toString().padStart(4)} | ${comp.padEnd(22)} | ${count.toString().padStart(12)}`,
-        );
+        reportLines.push(`| ${index + 1} | ${comp} | ${count} |`);
       });
     } else {
-      reportLines.push("No other UI library components found");
+      reportLines.push("*No other UI library components found*");
     }
 
     // Top Internal components
     reportLines.push("");
-    reportLines.push("TOP 20 INTERNAL/LOCAL COMPONENTS");
-    reportLines.push("-".repeat(50));
+    reportLines.push("### Top 20 Internal/Local Components");
+    reportLines.push("");
 
     const internalSorted = Object.entries(data.internal.components)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 20);
 
     if (internalSorted.length > 0) {
-      reportLines.push("Rank | Component              | Instances");
-      reportLines.push("-".repeat(50));
+      reportLines.push("| Rank | Component | Instances |");
+      reportLines.push("| ---: | --- | ---: |");
       internalSorted.forEach(([comp, count], index) => {
-        reportLines.push(
-          `${(index + 1).toString().padStart(4)} | ${comp.padEnd(22)} | ${count.toString().padStart(12)}`,
-        );
+        reportLines.push(`| ${index + 1} | ${comp} | ${count} |`);
       });
     } else {
-      reportLines.push("No internal components found");
+      reportLines.push("*No internal components found*");
     }
 
     // Top native HTML tags
     reportLines.push("");
-    reportLines.push("TOP 20 NATIVE HTML/SVG TAGS");
-    reportLines.push("-".repeat(50));
+    reportLines.push("### Top 20 Native HTML/SVG Tags");
+    reportLines.push("");
 
     const htmlSorted = Object.entries(data.nativeHTML.components)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 20);
 
     if (htmlSorted.length > 0) {
-      reportLines.push("Rank | Tag                    | JSX Count");
-      reportLines.push("-".repeat(50));
+      reportLines.push("| Rank | Tag | JSX Count |");
+      reportLines.push("| ---: | --- | ---: |");
       htmlSorted.forEach(([tag, count], index) => {
-        reportLines.push(
-          `${(index + 1).toString().padStart(4)} | ${tag.padEnd(22)} | ${count.toString().padStart(12)}`,
-        );
+        reportLines.push(`| ${index + 1} | ${tag} | ${count} |`);
       });
     } else {
-      reportLines.push("No native HTML tags found");
+      reportLines.push("*No native HTML tags found*");
     }
 
     // Component source distribution
     reportLines.push("");
-    reportLines.push("COMPONENT SOURCE DISTRIBUTION");
-    reportLines.push("-".repeat(60));
+    reportLines.push("### Component Source Distribution");
+    reportLines.push("");
 
     const total = data.total.totalInstances || 1;
     const trackedUIPct = (
@@ -765,24 +744,25 @@ function generateReport(results) {
     );
     const htmlPct = ((data.nativeHTML.totalInstances / total) * 100).toFixed(1);
 
-    const trackedUIBar = "█".repeat(Math.round(parseFloat(trackedUIPct) / 2));
-    const otherBar = "█".repeat(Math.round(parseFloat(otherPct) / 2));
-    const internalBar = "█".repeat(Math.round(parseFloat(internalPct) / 2));
-    const htmlBar = "█".repeat(Math.round(parseFloat(htmlPct) / 2));
-
+    reportLines.push("| Source | Instances | % |");
+    reportLines.push("| --- | ---: | ---: |");
     reportLines.push(
-      `${UI_LIBRARY_NAMES}:${" ".repeat(Math.max(1, 12 - UI_LIBRARY_NAMES.length))}${trackedUIBar.padEnd(50)} ${trackedUIPct}%`,
+      `| ${UI_LIBRARY_NAMES} | ${data.trackedUI.totalInstances} | ${trackedUIPct}% |`,
     );
-    reportLines.push(`Other UI:   ${otherBar.padEnd(50)} ${otherPct}%`);
-    reportLines.push(`Internal:   ${internalBar.padEnd(50)} ${internalPct}%`);
-    reportLines.push(`HTML Tags:  ${htmlBar.padEnd(50)} ${htmlPct}%`);
+    reportLines.push(
+      `| Other UI | ${data.otherUI.totalInstances} | ${otherPct}% |`,
+    );
+    reportLines.push(
+      `| Internal | ${data.internal.totalInstances} | ${internalPct}% |`,
+    );
+    reportLines.push(
+      `| HTML Tags | ${data.nativeHTML.totalInstances} | ${htmlPct}% |`,
+    );
 
     // Internal components tracked UI library adoption
     reportLines.push("");
-    reportLines.push(
-      `INTERNAL COMPONENT ${UI_LIBRARY_NAMES.toUpperCase()} ADOPTION`,
-    );
-    reportLines.push("-".repeat(50));
+    reportLines.push(`### Internal Component ${UI_LIBRARY_NAMES} Adoption`);
+    reportLines.push("");
     const internalSanityPct =
       data.filesWithInternal > 0
         ? (
@@ -790,17 +770,18 @@ function generateReport(results) {
             100
           ).toFixed(1)
         : "0.0";
-    reportLines.push(`Files with internal imports: ${data.filesWithInternal}`);
     reportLines.push(
-      `Files also using ${UI_LIBRARY_NAMES}:  ${data.filesWithInternalUsingTrackedUI} (${internalSanityPct}%)`,
+      `- **Files with internal imports:** ${data.filesWithInternal}`,
+    );
+    reportLines.push(
+      `- **Files also using ${UI_LIBRARY_NAMES}:** ${data.filesWithInternalUsingTrackedUI} (${internalSanityPct}%)`,
     );
   }
 
   // Cross-codebase analysis
   reportLines.push("");
-  reportLines.push("═".repeat(80));
-  reportLines.push("CROSS-CODEBASE ANALYSIS");
-  reportLines.push("═".repeat(80));
+  reportLines.push("## Cross-Codebase Analysis");
+  reportLines.push("");
 
   // Aggregate all tracked UI library components across codebases
   const allTrackedUI = {};
@@ -815,34 +796,29 @@ function generateReport(results) {
     }
   }
 
+  reportLines.push(
+    `### Most Used ${UI_LIBRARY_NAMES} Components (Across All Codebases)`,
+  );
   reportLines.push("");
-  reportLines.push(
-    `MOST USED ${UI_LIBRARY_NAMES.toUpperCase()} COMPONENTS (ACROSS ALL CODEBASES)`,
-  );
-  reportLines.push("-".repeat(80));
-  reportLines.push(
-    "Rank | Component              | Total    | sanity   | canvas   | huey     (instances)",
-  );
-  reportLines.push("-".repeat(80));
+  reportLines.push("| Rank | Component | Total | sanity | canvas | huey |");
+  reportLines.push("| ---: | --- | ---: | ---: | ---: | ---: |");
 
   const allTrackedUISorted = Object.entries(allTrackedUI)
     .sort((a, b) => b[1].total - a[1].total)
     .slice(0, 30);
 
   allTrackedUISorted.forEach(([comp, data], index) => {
-    const trackedUICount = (data.codebases.sanity || 0).toString().padStart(8);
-    const canvasCount = (data.codebases.canvas || 0).toString().padStart(8);
-    const hueyCount = (data.codebases.huey || 0).toString().padStart(8);
+    const sanityCount = data.codebases.sanity || 0;
+    const canvasCount = data.codebases.canvas || 0;
+    const hueyCount = data.codebases.huey || 0;
     reportLines.push(
-      `${(index + 1).toString().padStart(4)} | ${comp.padEnd(22)} | ${data.total.toString().padStart(8)} | ${trackedUICount} | ${canvasCount} | ${hueyCount}`,
+      `| ${index + 1} | ${comp} | ${data.total} | ${sanityCount} | ${canvasCount} | ${hueyCount} |`,
     );
   });
 
   // Key insights
   reportLines.push("");
-  reportLines.push("═".repeat(80));
-  reportLines.push("KEY INSIGHTS");
-  reportLines.push("═".repeat(80));
+  reportLines.push("## Key Insights");
   reportLines.push("");
 
   const grandHTMLPercent =
@@ -851,38 +827,35 @@ function generateReport(results) {
       : "0.0";
 
   reportLines.push(
-    `1. Total JSX element instances across all codebases: ${grandTotal.total.toLocaleString()}`,
+    `1. Total JSX element instances across all codebases: **${grandTotal.total.toLocaleString()}**`,
   );
   reportLines.push(
-    `2. ${UI_LIBRARY_NAMES} instances: ${grandTotal.trackedUI.toLocaleString()} (${grandTrackedUIPercent}% of total)`,
+    `2. ${UI_LIBRARY_NAMES} instances: **${grandTotal.trackedUI.toLocaleString()}** (${grandTrackedUIPercent}% of total)`,
   );
   reportLines.push(
-    `3. Other UI library instances: ${grandTotal.otherUI.toLocaleString()} (${((grandTotal.otherUI / grandTotal.total) * 100).toFixed(1)}% of total)`,
+    `3. Other UI library instances: **${grandTotal.otherUI.toLocaleString()}** (${((grandTotal.otherUI / grandTotal.total) * 100).toFixed(1)}% of total)`,
   );
   reportLines.push(
-    `4. Internal component instances: ${grandTotal.internal.toLocaleString()} (${((grandTotal.internal / grandTotal.total) * 100).toFixed(1)}% of total)`,
+    `4. Internal component instances: **${grandTotal.internal.toLocaleString()}** (${((grandTotal.internal / grandTotal.total) * 100).toFixed(1)}% of total)`,
   );
   reportLines.push(
-    `5. Native HTML/SVG tag instances: ${grandTotal.nativeHTML.toLocaleString()} (${grandHTMLPercent}% of total)`,
+    `5. Native HTML/SVG tag instances: **${grandTotal.nativeHTML.toLocaleString()}** (${grandHTMLPercent}% of total)`,
   );
 
   if (allTrackedUISorted.length > 0) {
     reportLines.push(
-      `6. Most used ${UI_LIBRARY_NAMES} component: ${allTrackedUISorted[0][0]} (${allTrackedUISorted[0][1].total.toLocaleString()} instances)`,
+      `6. Most used ${UI_LIBRARY_NAMES} component: **${allTrackedUISorted[0][0]}** (${allTrackedUISorted[0][1].total.toLocaleString()} instances)`,
     );
   }
 
   const uniqueTrackedUICount = Object.keys(allTrackedUI).length;
   reportLines.push(
-    `7. Unique ${UI_LIBRARY_NAMES} components used: ${uniqueTrackedUICount}`,
+    `7. Unique ${UI_LIBRARY_NAMES} components used: **${uniqueTrackedUICount}**`,
   );
 
   reportLines.push(
-    `8. Internal components using ${UI_LIBRARY_NAMES}: ${grandTotal.filesWithInternalUsingTrackedUI} of ${grandTotal.filesWithInternal} files (${grandInternalPercent}%)`,
+    `8. Internal components using ${UI_LIBRARY_NAMES}: **${grandTotal.filesWithInternalUsingTrackedUI}** of ${grandTotal.filesWithInternal} files (${grandInternalPercent}%)`,
   );
-
-  reportLines.push("");
-  reportLines.push("═".repeat(80));
 
   return reportLines.join("\n");
 }
@@ -1109,7 +1082,7 @@ async function main() {
 
   // Text report
   const textReport = generateReport(results);
-  const textPath = path.join(outputDir, "report.txt");
+  const textPath = path.join(outputDir, "report.md");
   fs.writeFileSync(textPath, textReport);
   console.log(`\n✅ Text report saved to: ${textPath}`);
 

@@ -1729,9 +1729,7 @@ describe("generateSummaryText", () => {
       Button: createEmptyReport("Button"),
     });
 
-    expect(text).toContain(
-      `PER-COMPONENT ${UI_LIBRARY_NAMES.toUpperCase()} ANALYSIS`,
-    );
+    expect(text).toContain(`Per-Component ${UI_LIBRARY_NAMES} Analysis`);
   });
 
   test("includes component name in ranked table", () => {
@@ -1775,15 +1773,15 @@ describe("generateSummaryText", () => {
     const text = generateSummaryText(reports);
 
     expect(text).toContain("Spinner");
-    expect(text).toContain("(no props used)");
+    expect(text).toContain("*(no props used)*");
   });
 
   test("handles empty reports", () => {
     const text = generateSummaryText({});
 
-    expect(text).toContain("Components analysed:   0");
-    expect(text).toContain("Total imports:         0");
-    expect(text).toContain("Total JSX instances:   0");
+    expect(text).toContain("**Components analysed:** 0");
+    expect(text).toContain("**Total imports:** 0");
+    expect(text).toContain("**Total JSX instances:** 0");
   });
 });
 

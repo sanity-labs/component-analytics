@@ -18,7 +18,7 @@
  *   4. Sum across all files per codebase.
  *
  * Output:
- *   - `reports/line-ownership/line-ownership-report.txt`
+ *   - `reports/line-ownership/line-ownership-report.md`
  *   - `reports/line-ownership/line-ownership-report.csv`
  *   - `reports/line-ownership/line-ownership-report.json`
  *
@@ -450,7 +450,7 @@ function aggregateResults(fileResults) {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
- * Generate the plain-text report.
+ * Generate the markdown report.
  *
  * @param {Object<string, CodebaseLineMetrics | null>} results
  * @returns {string}
@@ -458,25 +458,23 @@ function aggregateResults(fileResults) {
 function generateTextReport(results) {
   const lines = [];
 
-  lines.push("═".repeat(90));
-  lines.push(`  ${UI_LIBRARY_NAMES.toUpperCase()} LINE OWNERSHIP ANALYSIS`);
-  lines.push("═".repeat(90));
+  lines.push(`# ${UI_LIBRARY_NAMES} Line Ownership Analysis`);
   lines.push("");
   lines.push(
-    `  Measures the line-of-code footprint of ${UI_LIBRARY_NAMES} in each codebase.`,
+    `Measures the line-of-code footprint of ${UI_LIBRARY_NAMES} in each codebase.`,
   );
   lines.push(
-    "  Only files that render UI (contain JSX) are included in the denominator.",
+    "Only files that render UI (contain JSX) are included in the denominator.",
   );
-  lines.push("  Pure logic files (hooks, types, utilities) are excluded.");
+  lines.push("Pure logic files (hooks, types, utilities) are excluded.");
   lines.push(
-    `  A line is counted as '${UI_LIBRARY_NAMES}' if it is part of a tracked library import`,
-  );
-  lines.push(
-    `  statement or falls within a ${UI_LIBRARY_NAMES} JSX opening tag (including`,
+    `A line is counted as '${UI_LIBRARY_NAMES}' if it is part of a tracked library import`,
   );
   lines.push(
-    "  multi-line prop spans).  Each physical line is counted at most once.",
+    `statement or falls within a ${UI_LIBRARY_NAMES} JSX opening tag (including`,
+  );
+  lines.push(
+    "multi-line prop spans). Each physical line is counted at most once.",
   );
   lines.push("");
 
@@ -514,74 +512,47 @@ function generateTextReport(results) {
 
     const p = pct(data.trackedUILines, data.uiFileLines);
 
-    lines.push("─".repeat(90));
-    lines.push(`  CODEBASE: ${codebase.toUpperCase()}`);
-    lines.push("─".repeat(90));
+    lines.push(`## ${codebase}`);
     lines.push("");
+    lines.push(`- **Total files:** ${data.fileCount.toLocaleString()}`);
     lines.push(
-      `  Total files:                 ${data.fileCount.toLocaleString()}`,
+      `- **UI files (with JSX):** ${data.uiFileCount.toLocaleString()}`,
     );
     lines.push(
-      `  UI files (with JSX):         ${data.uiFileCount.toLocaleString()}`,
+      `- **Files with ${UI_LIBRARY_NAMES}:** ${data.filesWithTrackedUI.toLocaleString()}`,
     );
     lines.push(
-      `  Files with ${UI_LIBRARY_NAMES}:${" ".repeat(Math.max(1, 23 - UI_LIBRARY_NAMES.length))}${data.filesWithTrackedUI.toLocaleString()}`,
+      `- **${UI_LIBRARY_NAMES} tags found:** ${data.tagCount.toLocaleString()}`,
     );
     lines.push(
-      `  ${UI_LIBRARY_NAMES} tags found:${" ".repeat(Math.max(1, 23 - UI_LIBRARY_NAMES.length))}${data.tagCount.toLocaleString()}`,
+      `- **Total lines (all files):** ${data.totalLines.toLocaleString()}`,
     );
-    lines.push("");
+    lines.push(`- **UI file lines:** ${data.uiFileLines.toLocaleString()}`);
     lines.push(
-      `  Total lines (all files):     ${data.totalLines.toLocaleString()}`,
+      `- **${UI_LIBRARY_NAMES} lines:** ${data.trackedUILines.toLocaleString()}`,
     );
-    lines.push(
-      `  UI file lines:               ${data.uiFileLines.toLocaleString()}`,
-    );
-    lines.push(
-      `  ${UI_LIBRARY_NAMES} lines:${" ".repeat(Math.max(1, 29 - UI_LIBRARY_NAMES.length))}${data.trackedUILines.toLocaleString()}`,
-    );
-    lines.push(
-      `    ├─ Import lines:           ${data.importLines.toLocaleString()}`,
-    );
-    lines.push(
-      `    └─ JSX tag lines:          ${data.tagLines.toLocaleString()}`,
-    );
-    lines.push(`  Line ownership (UI):         ${p}%`);
-    lines.push("");
+    lines.push(`  - Import lines: ${data.importLines.toLocaleString()}`);
+    lines.push(`  - JSX tag lines: ${data.tagLines.toLocaleString()}`);
+    lines.push(`- **Line ownership (UI):** ${p}%`);
 
     if (data.tagCount > 0) {
       const avgLinesPerTag = (data.tagLines / data.tagCount).toFixed(2);
-      lines.push(`  Avg lines per tag:           ${avgLinesPerTag}`);
-      lines.push("");
+      lines.push(`- **Avg lines per tag:** ${avgLinesPerTag}`);
     }
+    lines.push("");
 
     // Top components by line count
     const sorted = sortByCount(data.linesByComponent);
     if (sorted.length > 0) {
-      lines.push("  TOP 20 COMPONENTS BY LINE OWNERSHIP");
-      lines.push(
-        "  " +
-          "Rank".padEnd(6) +
-          "Component".padEnd(28) +
-          "Lines".padStart(10) +
-          "  " +
-          "% of UI Lines".padStart(13) +
-          "  " +
-          "% of UI Code".padStart(13),
-      );
-      lines.push("  " + "-".repeat(74));
+      lines.push("### Top 20 Components by Line Ownership");
+      lines.push("");
+      lines.push("| Rank | Component | Lines | % of UI Lines | % of UI Code |");
+      lines.push("| ---: | --- | ---: | ---: | ---: |");
 
       for (let i = 0; i < Math.min(20, sorted.length); i++) {
         const [comp, count] = sorted[i];
         lines.push(
-          "  " +
-            String(i + 1).padEnd(6) +
-            comp.padEnd(28) +
-            count.toLocaleString().padStart(10) +
-            "  " +
-            (pct(count, data.trackedUILines) + "%").padStart(13) +
-            "  " +
-            (pct(count, data.uiFileLines) + "%").padStart(13),
+          `| ${i + 1} | ${comp} | ${count.toLocaleString()} | ${pct(count, data.trackedUILines)}% | ${pct(count, data.uiFileLines)}% |`,
         );
       }
       lines.push("");
@@ -590,157 +561,78 @@ function generateTextReport(results) {
 
   // ── Aggregate section ─────────────────────────────────────────────────
 
-  lines.push("═".repeat(90));
-  lines.push("  AGGREGATE — ALL CODEBASES COMBINED");
-  lines.push("═".repeat(90));
+  lines.push("## Aggregate — All Codebases Combined");
   lines.push("");
+  lines.push(`- **Total files:** ${grand.fileCount.toLocaleString()}`);
   lines.push(
-    `  Total files:                 ${grand.fileCount.toLocaleString()}`,
+    `- **UI files (with JSX):** ${grand.uiFileCount.toLocaleString()}`,
   );
   lines.push(
-    `  UI files (with JSX):         ${grand.uiFileCount.toLocaleString()}`,
+    `- **Files with ${UI_LIBRARY_NAMES}:** ${grand.filesWithTrackedUI.toLocaleString()}`,
   );
   lines.push(
-    `  Files with ${UI_LIBRARY_NAMES}:${" ".repeat(Math.max(1, 23 - UI_LIBRARY_NAMES.length))}${grand.filesWithTrackedUI.toLocaleString()}`,
+    `- **${UI_LIBRARY_NAMES} tags:** ${grand.tagCount.toLocaleString()}`,
   );
   lines.push(
-    `  ${UI_LIBRARY_NAMES} tags:${" ".repeat(Math.max(1, 30 - UI_LIBRARY_NAMES.length))}${grand.tagCount.toLocaleString()}`,
+    `- **Total lines (all files):** ${grand.totalLines.toLocaleString()}`,
   );
-  lines.push("");
+  lines.push(`- **UI file lines:** ${grand.uiFileLines.toLocaleString()}`);
   lines.push(
-    `  Total lines (all files):     ${grand.totalLines.toLocaleString()}`,
+    `- **${UI_LIBRARY_NAMES} lines:** ${grand.trackedUILines.toLocaleString()}`,
   );
+  lines.push(`  - Import lines: ${grand.importLines.toLocaleString()}`);
+  lines.push(`  - JSX tag lines: ${grand.tagLines.toLocaleString()}`);
   lines.push(
-    `  UI file lines:               ${grand.uiFileLines.toLocaleString()}`,
+    `- **Line ownership (UI):** ${pct(grand.trackedUILines, grand.uiFileLines)}%`,
   );
-  lines.push(
-    `  ${UI_LIBRARY_NAMES} lines:${" ".repeat(Math.max(1, 29 - UI_LIBRARY_NAMES.length))}${grand.trackedUILines.toLocaleString()}`,
-  );
-  lines.push(
-    `    ├─ Import lines:           ${grand.importLines.toLocaleString()}`,
-  );
-  lines.push(
-    `    └─ JSX tag lines:          ${grand.tagLines.toLocaleString()}`,
-  );
-  lines.push(
-    `  Line ownership (UI):         ${pct(grand.trackedUILines, grand.uiFileLines)}%`,
-  );
-  lines.push("");
 
   if (grand.tagCount > 0) {
     const avgGrand = (grand.tagLines / grand.tagCount).toFixed(2);
-    lines.push(`  Avg lines per tag:           ${avgGrand}`);
-    lines.push("");
+    lines.push(`- **Avg lines per tag:** ${avgGrand}`);
   }
+  lines.push("");
 
   // Comparison table
-  lines.push("  CODEBASE COMPARISON (UI FILES ONLY)");
+  lines.push("### Codebase Comparison (UI Files Only)");
+  lines.push("");
   lines.push(
-    "  " +
-      "Codebase".padEnd(14) +
-      "UI Files".padStart(10) +
-      "  " +
-      "UI Lines".padStart(11) +
-      "  " +
-      "SUI Lines".padStart(10) +
-      "  " +
-      "Import".padStart(8) +
-      "  " +
-      "JSX Tag".padStart(8) +
-      "  " +
-      "% Owned".padStart(8) +
-      "  " +
-      "Tags".padStart(7) +
-      "  " +
-      "Avg L/Tag".padStart(9),
+    "| Codebase | UI Files | UI Lines | SUI Lines | Import | JSX Tag | % Owned | Tags | Avg L/Tag |",
   );
-  lines.push("  " + "-".repeat(95));
+  lines.push("| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |");
 
   for (const [codebase, data] of Object.entries(results)) {
     if (!data) continue;
     const avg =
       data.tagCount > 0 ? (data.tagLines / data.tagCount).toFixed(2) : "0.00";
     lines.push(
-      "  " +
-        codebase.padEnd(14) +
-        data.uiFileCount.toLocaleString().padStart(10) +
-        "  " +
-        data.uiFileLines.toLocaleString().padStart(11) +
-        "  " +
-        data.trackedUILines.toLocaleString().padStart(10) +
-        "  " +
-        data.importLines.toLocaleString().padStart(8) +
-        "  " +
-        data.tagLines.toLocaleString().padStart(8) +
-        "  " +
-        (pct(data.trackedUILines, data.uiFileLines) + "%").padStart(8) +
-        "  " +
-        data.tagCount.toLocaleString().padStart(7) +
-        "  " +
-        avg.padStart(9),
+      `| ${codebase} | ${data.uiFileCount.toLocaleString()} | ${data.uiFileLines.toLocaleString()} | ${data.trackedUILines.toLocaleString()} | ${data.importLines.toLocaleString()} | ${data.tagLines.toLocaleString()} | ${pct(data.trackedUILines, data.uiFileLines)}% | ${data.tagCount.toLocaleString()} | ${avg} |`,
     );
   }
-
-  lines.push("  " + "-".repeat(95));
 
   const grandAvg =
     grand.tagCount > 0 ? (grand.tagLines / grand.tagCount).toFixed(2) : "0.00";
 
   lines.push(
-    "  " +
-      "TOTAL".padEnd(14) +
-      grand.uiFileCount.toLocaleString().padStart(10) +
-      "  " +
-      grand.uiFileLines.toLocaleString().padStart(11) +
-      "  " +
-      grand.trackedUILines.toLocaleString().padStart(10) +
-      "  " +
-      grand.importLines.toLocaleString().padStart(8) +
-      "  " +
-      grand.tagLines.toLocaleString().padStart(8) +
-      "  " +
-      (pct(grand.trackedUILines, grand.uiFileLines) + "%").padStart(8) +
-      "  " +
-      grand.tagCount.toLocaleString().padStart(7) +
-      "  " +
-      grandAvg.padStart(9),
+    `| **TOTAL** | **${grand.uiFileCount.toLocaleString()}** | **${grand.uiFileLines.toLocaleString()}** | **${grand.trackedUILines.toLocaleString()}** | **${grand.importLines.toLocaleString()}** | **${grand.tagLines.toLocaleString()}** | **${pct(grand.trackedUILines, grand.uiFileLines)}%** | **${grand.tagCount.toLocaleString()}** | **${grandAvg}** |`,
   );
   lines.push("");
 
   // Top components across all codebases
   const grandSorted = sortByCount(grand.linesByComponent);
   if (grandSorted.length > 0) {
-    lines.push("  TOP 20 COMPONENTS BY LINE OWNERSHIP (ALL CODEBASES)");
-    lines.push(
-      "  " +
-        "Rank".padEnd(6) +
-        "Component".padEnd(28) +
-        "Lines".padStart(10) +
-        "  " +
-        "% of UI Lines".padStart(13) +
-        "  " +
-        "% of UI Code".padStart(13),
-    );
-    lines.push("  " + "-".repeat(74));
+    lines.push("### Top 20 Components by Line Ownership (All Codebases)");
+    lines.push("");
+    lines.push("| Rank | Component | Lines | % of UI Lines | % of UI Code |");
+    lines.push("| ---: | --- | ---: | ---: | ---: |");
 
     for (let i = 0; i < Math.min(20, grandSorted.length); i++) {
       const [comp, count] = grandSorted[i];
       lines.push(
-        "  " +
-          String(i + 1).padEnd(6) +
-          comp.padEnd(28) +
-          count.toLocaleString().padStart(10) +
-          "  " +
-          (pct(count, grand.trackedUILines) + "%").padStart(13) +
-          "  " +
-          (pct(count, grand.uiFileLines) + "%").padStart(13),
+        `| ${i + 1} | ${comp} | ${count.toLocaleString()} | ${pct(count, grand.trackedUILines)}% | ${pct(count, grand.uiFileLines)}% |`,
       );
     }
     lines.push("");
   }
-
-  lines.push("═".repeat(90));
-  lines.push("");
 
   return lines.join("\n");
 }

@@ -16,7 +16,7 @@
  *   4. Sum across all files per codebase.
  *
  * Output:
- *   - `reports/prop-surface/prop-surface-report.txt`
+ *   - `reports/prop-surface/prop-surface-report.md`
  *   - `reports/prop-surface/prop-surface-report.csv`
  *   - `reports/prop-surface/prop-surface-report.json`
  *
@@ -339,7 +339,7 @@ function formatSize(chars) {
 }
 
 /**
- * Generate the plain-text report.
+ * Generate the markdown report.
  *
  * @param {Object<string, CodebaseMetrics | null>} results - Keyed by codebase name.
  * @returns {string}
@@ -347,17 +347,15 @@ function formatSize(chars) {
 function generateTextReport(results) {
   const lines = [];
 
-  lines.push("═".repeat(90));
-  lines.push(`  ${UI_LIBRARY_NAMES.toUpperCase()} PROP SURFACE AREA ANALYSIS`);
-  lines.push("═".repeat(90));
+  lines.push(`# ${UI_LIBRARY_NAMES} Prop Surface Area Analysis`);
   lines.push("");
   lines.push(
-    `  Measures the character footprint of ${UI_LIBRARY_NAMES} component props/attributes`,
+    `Measures the character footprint of ${UI_LIBRARY_NAMES} component props/attributes`,
   );
   lines.push(
-    "  relative to files that render UI (contain JSX).  Pure logic files",
+    "relative to files that render UI (contain JSX). Pure logic files",
   );
-  lines.push("  (hooks, types, utilities) are excluded from the denominator.");
+  lines.push("(hooks, types, utilities) are excluded from the denominator.");
   lines.push("");
 
   // ── Per-codebase sections ─────────────────────────────────────────────
@@ -390,70 +388,51 @@ function generateTextReport(results) {
 
     const p = pct(data.trackedUIPropChars, data.uiFileChars);
 
-    lines.push("─".repeat(90));
-    lines.push(`  CODEBASE: ${codebase.toUpperCase()}`);
-    lines.push("─".repeat(90));
+    lines.push(`## ${codebase}`);
     lines.push("");
+    lines.push(`- **Total files:** ${data.fileCount.toLocaleString()}`);
     lines.push(
-      `  Total files:                 ${data.fileCount.toLocaleString()}`,
+      `- **UI files (with JSX):** ${data.uiFileCount.toLocaleString()}`,
     );
     lines.push(
-      `  UI files (with JSX):         ${data.uiFileCount.toLocaleString()}`,
+      `- **Files with ${UI_LIBRARY_NAMES}:** ${data.filesWithTrackedUI.toLocaleString()}`,
     );
     lines.push(
-      `  Files with ${UI_LIBRARY_NAMES}:${" ".repeat(Math.max(1, 23 - UI_LIBRARY_NAMES.length))}${data.filesWithTrackedUI.toLocaleString()}`,
+      `- **${UI_LIBRARY_NAMES} tags found:** ${data.trackedUITagCount.toLocaleString()}`,
     );
     lines.push(
-      `  ${UI_LIBRARY_NAMES} tags found:${" ".repeat(Math.max(1, 23 - UI_LIBRARY_NAMES.length))}${data.trackedUITagCount.toLocaleString()}`,
-    );
-    lines.push("");
-    lines.push(
-      `  Total chars (all files):     ${data.totalChars.toLocaleString()}  (${formatSize(data.totalChars)})`,
+      `- **Total chars (all files):** ${data.totalChars.toLocaleString()} (${formatSize(data.totalChars)})`,
     );
     lines.push(
-      `  UI file chars:               ${data.uiFileChars.toLocaleString()}  (${formatSize(data.uiFileChars)})`,
+      `- **UI file chars:** ${data.uiFileChars.toLocaleString()} (${formatSize(data.uiFileChars)})`,
     );
     lines.push(
-      `  ${UI_LIBRARY_NAMES} prop chars:${" ".repeat(Math.max(1, 23 - UI_LIBRARY_NAMES.length))}${data.trackedUIPropChars.toLocaleString()}  (${formatSize(data.trackedUIPropChars)})`,
+      `- **${UI_LIBRARY_NAMES} prop chars:** ${data.trackedUIPropChars.toLocaleString()} (${formatSize(data.trackedUIPropChars)})`,
     );
-    lines.push(`  Prop surface area (UI):      ${p}%`);
-    lines.push("");
+    lines.push(`- **Prop surface area (UI):** ${p}%`);
 
     if (data.trackedUITagCount > 0) {
       const avgCharsPerTag = (
         data.trackedUIPropChars / data.trackedUITagCount
       ).toFixed(1);
-      lines.push(`  Avg prop chars per tag:      ${avgCharsPerTag}`);
-      lines.push("");
+      lines.push(`- **Avg prop chars per tag:** ${avgCharsPerTag}`);
     }
+    lines.push("");
 
     // Top components by prop character usage
     const sorted = sortByCount(data.charsByComponent);
     if (sorted.length > 0) {
-      lines.push("  TOP 20 COMPONENTS BY PROP CHARACTER USAGE");
+      lines.push("### Top 20 Components by Prop Character Usage");
+      lines.push("");
       lines.push(
-        "  " +
-          "Rank".padEnd(6) +
-          "Component".padEnd(28) +
-          "Prop Chars".padStart(12) +
-          "  " +
-          "% of Props".padStart(10) +
-          "  " +
-          "% of UI Code".padStart(13),
+        "| Rank | Component | Prop Chars | % of Props | % of UI Code |",
       );
-      lines.push("  " + "-".repeat(73));
+      lines.push("| ---: | --- | ---: | ---: | ---: |");
 
       for (let i = 0; i < Math.min(20, sorted.length); i++) {
         const [comp, chars] = sorted[i];
         lines.push(
-          "  " +
-            String(i + 1).padEnd(6) +
-            comp.padEnd(28) +
-            chars.toLocaleString().padStart(12) +
-            "  " +
-            (pct(chars, data.trackedUIPropChars) + "%").padStart(10) +
-            "  " +
-            (pct(chars, data.uiFileChars) + "%").padStart(13),
+          `| ${i + 1} | ${comp} | ${chars.toLocaleString()} | ${pct(chars, data.trackedUIPropChars)}% | ${pct(chars, data.uiFileChars)}% |`,
         );
       }
       lines.push("");
@@ -462,63 +441,46 @@ function generateTextReport(results) {
 
   // ── Aggregate section ─────────────────────────────────────────────────
 
-  lines.push("═".repeat(90));
-  lines.push("  AGGREGATE — ALL CODEBASES COMBINED");
-  lines.push("═".repeat(90));
+  lines.push("## Aggregate — All Codebases Combined");
   lines.push("");
+  lines.push(`- **Total files:** ${grand.fileCount.toLocaleString()}`);
   lines.push(
-    `  Total files:                 ${grand.fileCount.toLocaleString()}`,
+    `- **UI files (with JSX):** ${grand.uiFileCount.toLocaleString()}`,
   );
   lines.push(
-    `  UI files (with JSX):         ${grand.uiFileCount.toLocaleString()}`,
+    `- **Files with ${UI_LIBRARY_NAMES}:** ${grand.filesWithTrackedUI.toLocaleString()}`,
   );
   lines.push(
-    `  Files with ${UI_LIBRARY_NAMES}:${" ".repeat(Math.max(1, 23 - UI_LIBRARY_NAMES.length))}${grand.filesWithTrackedUI.toLocaleString()}`,
+    `- **${UI_LIBRARY_NAMES} tags:** ${grand.trackedUITagCount.toLocaleString()}`,
   );
   lines.push(
-    `  ${UI_LIBRARY_NAMES} tags:${" ".repeat(Math.max(1, 30 - UI_LIBRARY_NAMES.length))}${grand.trackedUITagCount.toLocaleString()}`,
-  );
-  lines.push("");
-  lines.push(
-    `  Total chars (all files):     ${grand.totalChars.toLocaleString()}  (${formatSize(grand.totalChars)})`,
+    `- **Total chars (all files):** ${grand.totalChars.toLocaleString()} (${formatSize(grand.totalChars)})`,
   );
   lines.push(
-    `  UI file chars:               ${grand.uiFileChars.toLocaleString()}  (${formatSize(grand.uiFileChars)})`,
+    `- **UI file chars:** ${grand.uiFileChars.toLocaleString()} (${formatSize(grand.uiFileChars)})`,
   );
   lines.push(
-    `  ${UI_LIBRARY_NAMES} prop chars:${" ".repeat(Math.max(1, 23 - UI_LIBRARY_NAMES.length))}${grand.trackedUIPropChars.toLocaleString()}  (${formatSize(grand.trackedUIPropChars)})`,
+    `- **${UI_LIBRARY_NAMES} prop chars:** ${grand.trackedUIPropChars.toLocaleString()} (${formatSize(grand.trackedUIPropChars)})`,
   );
   lines.push(
-    `  Prop surface area (UI):      ${pct(grand.trackedUIPropChars, grand.uiFileChars)}%`,
+    `- **Prop surface area (UI):** ${pct(grand.trackedUIPropChars, grand.uiFileChars)}%`,
   );
-  lines.push("");
 
   if (grand.trackedUITagCount > 0) {
     const avgGrand = (
       grand.trackedUIPropChars / grand.trackedUITagCount
     ).toFixed(1);
-    lines.push(`  Avg prop chars per tag:      ${avgGrand}`);
-    lines.push("");
+    lines.push(`- **Avg prop chars per tag:** ${avgGrand}`);
   }
+  lines.push("");
 
   // Summary table
-  lines.push("  CODEBASE COMPARISON (UI FILES ONLY)");
+  lines.push("### Codebase Comparison (UI Files Only)");
+  lines.push("");
   lines.push(
-    "  " +
-      "Codebase".padEnd(14) +
-      "UI Files".padStart(10) +
-      "  " +
-      "UI Chars".padStart(14) +
-      "  " +
-      "Prop Chars".padStart(12) +
-      "  " +
-      "% Surface".padStart(10) +
-      "  " +
-      "Tags".padStart(8) +
-      "  " +
-      "Avg/Tag".padStart(8),
+    "| Codebase | UI Files | UI Chars | Prop Chars | % Surface | Tags | Avg/Tag |",
   );
-  lines.push("  " + "-".repeat(82));
+  lines.push("| --- | ---: | ---: | ---: | ---: | ---: | ---: |");
 
   for (const [codebase, data] of Object.entries(results)) {
     if (!data) continue;
@@ -527,23 +489,9 @@ function generateTextReport(results) {
         ? (data.trackedUIPropChars / data.trackedUITagCount).toFixed(1)
         : "0.0";
     lines.push(
-      "  " +
-        codebase.padEnd(14) +
-        data.uiFileCount.toLocaleString().padStart(10) +
-        "  " +
-        data.uiFileChars.toLocaleString().padStart(14) +
-        "  " +
-        data.trackedUIPropChars.toLocaleString().padStart(12) +
-        "  " +
-        (pct(data.trackedUIPropChars, data.uiFileChars) + "%").padStart(10) +
-        "  " +
-        data.trackedUITagCount.toLocaleString().padStart(8) +
-        "  " +
-        avg.padStart(8),
+      `| ${codebase} | ${data.uiFileCount.toLocaleString()} | ${data.uiFileChars.toLocaleString()} | ${data.trackedUIPropChars.toLocaleString()} | ${pct(data.trackedUIPropChars, data.uiFileChars)}% | ${data.trackedUITagCount.toLocaleString()} | ${avg} |`,
     );
   }
-
-  lines.push("  " + "-".repeat(82));
 
   const grandAvg =
     grand.trackedUITagCount > 0
@@ -551,19 +499,7 @@ function generateTextReport(results) {
       : "0.0";
 
   lines.push(
-    "  " +
-      "TOTAL".padEnd(14) +
-      grand.uiFileCount.toLocaleString().padStart(10) +
-      "  " +
-      grand.uiFileChars.toLocaleString().padStart(14) +
-      "  " +
-      grand.trackedUIPropChars.toLocaleString().padStart(12) +
-      "  " +
-      (pct(grand.trackedUIPropChars, grand.uiFileChars) + "%").padStart(10) +
-      "  " +
-      grand.trackedUITagCount.toLocaleString().padStart(8) +
-      "  " +
-      grandAvg.padStart(8),
+    `| **TOTAL** | **${grand.uiFileCount.toLocaleString()}** | **${grand.uiFileChars.toLocaleString()}** | **${grand.trackedUIPropChars.toLocaleString()}** | **${pct(grand.trackedUIPropChars, grand.uiFileChars)}%** | **${grand.trackedUITagCount.toLocaleString()}** | **${grandAvg}** |`,
   );
 
   lines.push("");
@@ -571,37 +507,21 @@ function generateTextReport(results) {
   // Top components across all codebases
   const grandSorted = sortByCount(grand.charsByComponent);
   if (grandSorted.length > 0) {
-    lines.push("  TOP 20 COMPONENTS BY PROP CHARACTER USAGE (ALL CODEBASES)");
+    lines.push("### Top 20 Components by Prop Character Usage (All Codebases)");
+    lines.push("");
     lines.push(
-      "  " +
-        "Rank".padEnd(6) +
-        "Component".padEnd(28) +
-        "Prop Chars".padStart(12) +
-        "  " +
-        "% of All Props".padStart(14) +
-        "  " +
-        "% of UI Code".padStart(13),
+      "| Rank | Component | Prop Chars | % of All Props | % of UI Code |",
     );
-    lines.push("  " + "-".repeat(77));
+    lines.push("| ---: | --- | ---: | ---: | ---: |");
 
     for (let i = 0; i < Math.min(20, grandSorted.length); i++) {
       const [comp, chars] = grandSorted[i];
       lines.push(
-        "  " +
-          String(i + 1).padEnd(6) +
-          comp.padEnd(28) +
-          chars.toLocaleString().padStart(12) +
-          "  " +
-          (pct(chars, grand.trackedUIPropChars) + "%").padStart(14) +
-          "  " +
-          (pct(chars, grand.uiFileChars) + "%").padStart(13),
+        `| ${i + 1} | ${comp} | ${chars.toLocaleString()} | ${pct(chars, grand.trackedUIPropChars)}% | ${pct(chars, grand.uiFileChars)}% |`,
       );
     }
     lines.push("");
   }
-
-  lines.push("═".repeat(90));
-  lines.push("");
 
   return lines.join("\n");
 }

@@ -1536,10 +1536,10 @@ describe("Integration tests", () => {
     };
 
     const text = generateTextReport(results);
-    expect(text).toContain("SANITY");
-    expect(text).toContain("CANVAS");
+    expect(text).toContain("sanity");
+    expect(text).toContain("canvas");
     expect(text).toContain("Card");
-    expect(text).toContain("AGGREGATE");
+    expect(text).toContain("Aggregate");
 
     const csv = generateCSV(results);
     expect(csv).toContain('"Card"');

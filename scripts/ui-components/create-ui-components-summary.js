@@ -7,7 +7,7 @@ const CODEBASES = ["sanity", "canvas", "huey"];
 function createUISummary(codebase) {
   const inputPath = `reports/${codebase}/wrappers/wrappers.json`;
   const summaryPath = `reports/${codebase}/wrappers/summary.csv`;
-  const statsPath = `reports/${codebase}/wrappers/stats.txt`;
+  const statsPath = `reports/${codebase}/wrappers/stats.md`;
 
   // Check if input file exists
   if (!fs.existsSync(inputPath)) {
@@ -83,47 +83,43 @@ function createUISummary(codebase) {
 
   // Generate detailed statistics report
   const statsLines = [];
-  statsLines.push("=".repeat(70));
   statsLines.push(
-    `${codebase.toUpperCase()} - UI-COMPONENTS ANALYSIS - DETAILED STATISTICS`,
+    `# ${codebase} — UI-Components Analysis — Detailed Statistics`,
   );
-  statsLines.push("=".repeat(70));
   statsLines.push("");
 
   statsLines.push(
-    `DIRECTORY: codebases/${codebase}/packages/sanity/src/ui-components`,
+    `**Directory:** \`codebases/${codebase}/packages/sanity/src/ui-components\``,
   );
   statsLines.push("");
 
   // General Statistics
-  statsLines.push("GENERAL STATISTICS");
-  statsLines.push("-".repeat(70));
-  statsLines.push(`Total UI Components:            ${components.length}`);
-  statsLines.push(`Total Component Instances:      ${totalInstances}`);
-  statsLines.push(`Total Unique Props Used:        ${totalProps}`);
-  statsLines.push(`Total Prop Usages:              ${totalPropUsages}`);
+  statsLines.push("## General Statistics");
+  statsLines.push("");
+  statsLines.push(`- **Total UI Components:** ${components.length}`);
+  statsLines.push(`- **Total Component Instances:** ${totalInstances}`);
+  statsLines.push(`- **Total Unique Props Used:** ${totalProps}`);
+  statsLines.push(`- **Total Prop Usages:** ${totalPropUsages}`);
   statsLines.push(
-    `Avg Props per Component Type:   ${components.length > 0 ? (totalProps / components.length).toFixed(2) : 0}`,
+    `- **Avg Props per Component Type:** ${components.length > 0 ? (totalProps / components.length).toFixed(2) : 0}`,
   );
   statsLines.push(
-    `Avg Props per Instance:         ${totalInstances > 0 ? (totalPropUsages / totalInstances).toFixed(2) : 0}`,
+    `- **Avg Props per Instance:** ${totalInstances > 0 ? (totalPropUsages / totalInstances).toFixed(2) : 0}`,
   );
   statsLines.push("");
 
   // All components (sorted by usage)
-  statsLines.push("ALL UI COMPONENTS (SORTED BY USAGE)");
-  statsLines.push("-".repeat(70));
+  statsLines.push("## All UI Components (Sorted by Usage)");
+  statsLines.push("");
   statsLines.push(
-    "Rank | Component Name              | Instances | Unique Props | Avg Props/Use",
+    "| Rank | Component Name | Instances | Unique Props | Avg Props/Use |",
   );
-  statsLines.push("-".repeat(70));
+  statsLines.push("| ---: | --- | ---: | ---: | ---: |");
   components.forEach((comp, index) => {
-    const rank = (index + 1).toString().padStart(4);
-    const name = comp.name.padEnd(27);
-    const instances = comp.instances.toString().padStart(9);
-    const props = comp.propsCount.toString().padStart(12);
-    const avg = (comp.propUsages / comp.instances).toFixed(2).padStart(13);
-    statsLines.push(`${rank} | ${name} | ${instances} | ${props} | ${avg}`);
+    const avg = (comp.propUsages / comp.instances).toFixed(2);
+    statsLines.push(
+      `| ${index + 1} | ${comp.name} | ${comp.instances} | ${comp.propsCount} | ${avg} |`,
+    );
   });
   statsLines.push("");
 
@@ -131,18 +127,14 @@ function createUISummary(codebase) {
   const componentsByProps = [...components].sort(
     (a, b) => b.propsCount - a.propsCount,
   );
-  statsLines.push("COMPONENTS WITH MOST UNIQUE PROPS");
-  statsLines.push("-".repeat(70));
-  statsLines.push(
-    "Rank | Component Name              | Unique Props | Instances",
-  );
-  statsLines.push("-".repeat(70));
+  statsLines.push("## Components with Most Unique Props");
+  statsLines.push("");
+  statsLines.push("| Rank | Component Name | Unique Props | Instances |");
+  statsLines.push("| ---: | --- | ---: | ---: |");
   componentsByProps.forEach((comp, index) => {
-    const rank = (index + 1).toString().padStart(4);
-    const name = comp.name.padEnd(27);
-    const props = comp.propsCount.toString().padStart(12);
-    const instances = comp.instances.toString().padStart(9);
-    statsLines.push(`${rank} | ${name} | ${props} | ${instances}`);
+    statsLines.push(
+      `| ${index + 1} | ${comp.name} | ${comp.propsCount} | ${comp.instances} |`,
+    );
   });
   statsLines.push("");
 
@@ -150,18 +142,15 @@ function createUISummary(codebase) {
   const componentsByAvgProps = [...components]
     .filter((c) => c.instances >= 1)
     .sort((a, b) => b.propUsages / b.instances - a.propUsages / a.instances);
-  statsLines.push("COMPONENTS WITH HIGHEST AVG PROPS PER USE");
-  statsLines.push("-".repeat(70));
-  statsLines.push(
-    "Rank | Component Name              | Avg Props/Use | Instances",
-  );
-  statsLines.push("-".repeat(70));
+  statsLines.push("## Components with Highest Avg Props per Use");
+  statsLines.push("");
+  statsLines.push("| Rank | Component Name | Avg Props/Use | Instances |");
+  statsLines.push("| ---: | --- | ---: | ---: |");
   componentsByAvgProps.forEach((comp, index) => {
-    const rank = (index + 1).toString().padStart(4);
-    const name = comp.name.padEnd(27);
-    const avg = (comp.propUsages / comp.instances).toFixed(2).padStart(13);
-    const instances = comp.instances.toString().padStart(9);
-    statsLines.push(`${rank} | ${name} | ${avg} | ${instances}`);
+    const avg = (comp.propUsages / comp.instances).toFixed(2);
+    statsLines.push(
+      `| ${index + 1} | ${comp.name} | ${avg} | ${comp.instances} |`,
+    );
   });
   statsLines.push("");
 
@@ -182,18 +171,14 @@ function createUISummary(codebase) {
     .map(([name, data]) => ({ name, ...data }))
     .sort((a, b) => b.count - a.count);
 
-  statsLines.push("TOP 20 MOST USED PROPS (ACROSS ALL UI COMPONENTS)");
-  statsLines.push("-".repeat(70));
-  statsLines.push(
-    "Rank | Prop Name                | Total Uses | Used in Components",
-  );
-  statsLines.push("-".repeat(70));
+  statsLines.push("## Top 20 Most Used Props (Across All UI Components)");
+  statsLines.push("");
+  statsLines.push("| Rank | Prop Name | Total Uses | Used in Components |");
+  statsLines.push("| ---: | --- | ---: | ---: |");
   sortedProps.slice(0, 20).forEach((prop, index) => {
-    const rank = (index + 1).toString().padStart(4);
-    const name = prop.name.padEnd(24);
-    const count = prop.count.toString().padStart(10);
-    const comps = prop.components.toString().padStart(18);
-    statsLines.push(`${rank} | ${name} | ${count} | ${comps}`);
+    statsLines.push(
+      `| ${index + 1} | ${prop.name} | ${prop.count} | ${prop.components} |`,
+    );
   });
   statsLines.push("");
 
@@ -204,27 +189,18 @@ function createUISummary(codebase) {
   );
   const lowUsage = components.filter((c) => c.instances < 20);
 
-  statsLines.push("COMPONENT USAGE CATEGORIES");
-  statsLines.push("-".repeat(70));
+  statsLines.push("## Component Usage Categories");
+  statsLines.push("");
   statsLines.push(
-    "Category             | Component Count | Total Instances | Avg Instances",
+    "| Category | Component Count | Total Instances | Avg Instances |",
   );
-  statsLines.push("-".repeat(70));
+  statsLines.push("| --- | ---: | ---: | ---: |");
 
   const addCategory = (name, comps) => {
     if (comps.length > 0) {
-      const label = name.padEnd(20);
-      const count = comps.length.toString().padStart(15);
-      const total = comps
-        .reduce((sum, c) => sum + c.instances, 0)
-        .toString()
-        .padStart(15);
-      const avg = (
-        comps.reduce((sum, c) => sum + c.instances, 0) / comps.length
-      )
-        .toFixed(1)
-        .padStart(13);
-      statsLines.push(`${label} | ${count} | ${total} | ${avg}`);
+      const total = comps.reduce((sum, c) => sum + c.instances, 0);
+      const avg = (total / comps.length).toFixed(1);
+      statsLines.push(`| ${name} | ${comps.length} | ${total} | ${avg} |`);
     }
   };
 
@@ -234,8 +210,8 @@ function createUISummary(codebase) {
   statsLines.push("");
 
   // Component purposes (categorized by name patterns)
-  statsLines.push("COMPONENT PURPOSES");
-  statsLines.push("-".repeat(70));
+  statsLines.push("## Component Purposes");
+  statsLines.push("");
   const purposes = {
     Interactive: ["Button", "MenuItem", "Tab"],
     Overlay: ["Tooltip", "Dialog", "Popover", "MenuButton", "ConfirmPopover"],
@@ -248,21 +224,20 @@ function createUISummary(codebase) {
     if (comps.length > 0) {
       const totalInstances = comps.reduce((sum, c) => sum + c.instances, 0);
       statsLines.push(
-        `${category.padEnd(20)} | ${comps.length} components | ${totalInstances} instances`,
+        `**${category}:** ${comps.length} components, ${totalInstances} instances`,
       );
-      comps.forEach((c) => {
-        statsLines.push(
-          `  - ${c.name.padEnd(25)} ${c.instances.toString().padStart(4)} instances`,
-        );
-      });
+      for (const c of comps) {
+        statsLines.push(`- ${c.name}: ${c.instances} instances`);
+      }
+      statsLines.push("");
     }
   }
   statsLines.push("");
 
   // Key insights
   if (components.length > 0) {
-    statsLines.push("KEY INSIGHTS");
-    statsLines.push("-".repeat(70));
+    statsLines.push("## Key Insights");
+    statsLines.push("");
     statsLines.push(
       "1. " +
         components[0].name +
@@ -313,9 +288,9 @@ function createUISummary(codebase) {
     statsLines.push("");
   }
 
-  statsLines.push("=".repeat(70));
-  statsLines.push("UI Components analysis report generated successfully!");
-  statsLines.push("=".repeat(70));
+  statsLines.push("---");
+  statsLines.push("");
+  statsLines.push("*UI Components analysis report generated successfully.*");
 
   // Write stats to file
   fs.writeFileSync(statsPath, statsLines.join("\n"));

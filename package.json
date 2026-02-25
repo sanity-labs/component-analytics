@@ -9,6 +9,7 @@
     "analyze:html-tags": "node scripts/run.js --step html-tags",
     "analyze:customizations": "node scripts/run.js --step customizations",
     "analyze:per-component": "node scripts/run.js --step per-component",
+    "analyze:prop-combos": "node scripts/run.js --step prop-combos",
     "analyze:prop-surface": "node scripts/run.js --step prop-surface",
     "analyze:line-ownership": "node scripts/run.js --step line-ownership",
     "dashboard:dev": "npm --prefix dashboard run dev",

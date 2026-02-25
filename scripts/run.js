@@ -148,6 +148,17 @@ const STEPS = {
   },
 
   /**
+   * Prop combination cross-tabulation — counts unique value tuples
+   * for configured component + prop-set pairs.
+   */
+  "prop-combos"() {
+    console.log("\n" + "═".repeat(60));
+    console.log("  STEP: Prop Combinations");
+    console.log("═".repeat(60));
+    runScript("prop-combos/analyze-prop-combos.js");
+  },
+
+  /**
    * Character footprint of UI component props relative to UI files.
    */
   "prop-surface"() {

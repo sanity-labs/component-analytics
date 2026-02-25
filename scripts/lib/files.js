@@ -117,40 +117,40 @@ function reportDir(subdir) {
 
 /**
  * @typedef {object} ReportBundle
- * @property {string} text - Plain-text report content.
+ * @property {string} text - Markdown report content.
  * @property {string} csv  - CSV report content.
  * @property {string} json - JSON report content.
  */
 
 /**
- * Write a text / CSV / JSON triple to a report directory.
+ * Write a markdown / CSV / JSON triple to a report directory.
  *
  * Creates the directory if it does not already exist.  File names are
  * derived from `baseName`:
  *
- * - `<baseName>.txt`
+ * - `<baseName>.md`
  * - `<baseName>.csv`
  * - `<baseName>.json`
  *
  * @param {string}       subdir   - Subdirectory under `reports/`.
  * @param {string}       baseName - Stem used for the three file names.
  * @param {ReportBundle} reports  - The three report strings.
- * @returns {{ txtPath: string, csvPath: string, jsonPath: string }}
+ * @returns {{ mdPath: string, csvPath: string, jsonPath: string }}
  *   Absolute paths of the written files.
  */
 function writeReports(subdir, baseName, reports) {
   const dir = reportDir(subdir);
   ensureDir(dir);
 
-  const txtPath = path.join(dir, `${baseName}.txt`);
+  const mdPath = path.join(dir, `${baseName}.md`);
   const csvPath = path.join(dir, `${baseName}.csv`);
   const jsonPath = path.join(dir, `${baseName}.json`);
 
-  fs.writeFileSync(txtPath, reports.text);
+  fs.writeFileSync(mdPath, reports.text);
   fs.writeFileSync(csvPath, reports.csv);
   fs.writeFileSync(jsonPath, reports.json);
 
-  return { txtPath, csvPath, jsonPath };
+  return { mdPath, csvPath, jsonPath };
 }
 
 module.exports = {

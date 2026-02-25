@@ -21,7 +21,7 @@
  *   - `reports/per-component/detected-prop-defaults.json`
  *     Machine-readable map of `{ Component: { prop: { value, confidence, reason, count, total } } }`
  *
- *   - `reports/per-component/detected-prop-defaults.txt`
+ *   - `reports/per-component/detected-prop-defaults.md`
  *     Human-readable summary showing every detected default with its
  *     evidence and confidence level.
  *
@@ -383,7 +383,7 @@ function buildJsonOutput(results) {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
- * Generate a human-readable text report.
+ * Generate a human-readable markdown report.
  *
  * @param {DetectedDefault[]} results
  * @returns {string}
@@ -391,62 +391,44 @@ function buildJsonOutput(results) {
 function buildTextOutput(results) {
   const lines = [];
 
-  lines.push("═".repeat(90));
-  lines.push("  DETECTED PROP DEFAULTS");
-  lines.push("═".repeat(90));
+  lines.push("# Detected Prop Defaults");
   lines.push("");
   lines.push(
-    "  Auto-detected default prop values from per-component report data.",
+    "Auto-detected default prop values from per-component report data.",
   );
   lines.push(
-    "  These are props that developers explicitly set to what is likely the",
+    "These are props that developers explicitly set to what is likely the",
   );
-  lines.push("  component's built-in default — i.e. redundant usage.");
+  lines.push("component's built-in default — i.e. redundant usage.");
   lines.push("");
 
   const high = results.filter((r) => r.confidence === "high");
   const medium = results.filter((r) => r.confidence === "medium");
   const low = results.filter((r) => r.confidence === "low");
 
-  lines.push(`  Total detected:   ${results.length}`);
-  lines.push(`    High confidence:   ${high.length}`);
-  lines.push(`    Medium confidence: ${medium.length}`);
-  lines.push(`    Low confidence:    ${low.length}`);
+  lines.push(`- **Total detected:** ${results.length}`);
+  lines.push(`  - High confidence: ${high.length}`);
+  lines.push(`  - Medium confidence: ${medium.length}`);
+  lines.push(`  - Low confidence: ${low.length}`);
   lines.push("");
 
   // ── Grouped by confidence ──────────────────────────────────────────────
 
   for (const [label, group] of [
-    ["HIGH CONFIDENCE", high],
-    ["MEDIUM CONFIDENCE", medium],
-    ["LOW CONFIDENCE", low],
+    ["High Confidence", high],
+    ["Medium Confidence", medium],
+    ["Low Confidence", low],
   ]) {
     if (group.length === 0) continue;
 
-    lines.push("─".repeat(90));
-    lines.push(`  ${label} (${group.length})`);
-    lines.push("─".repeat(90));
+    lines.push(`## ${label} (${group.length})`);
     lines.push("");
-    lines.push(
-      "  " +
-        "Component".padEnd(26) +
-        "Prop".padEnd(20) +
-        "Default Value".padEnd(16) +
-        "Explicit Uses".padStart(14) +
-        "  " +
-        "Reason",
-    );
-    lines.push("  " + "-".repeat(86));
+    lines.push("| Component | Prop | Default Value | Explicit Uses | Reason |");
+    lines.push("| --- | --- | --- | ---: | --- |");
 
     for (const r of group) {
       lines.push(
-        "  " +
-          r.component.padEnd(26) +
-          r.prop.padEnd(20) +
-          r.value.padEnd(16) +
-          `${r.count} / ${r.total}`.padStart(14) +
-          "  " +
-          r.reason,
+        `| ${r.component} | ${r.prop} | ${r.value} | ${r.count} / ${r.total} | ${r.reason} |`,
       );
     }
     lines.push("");
@@ -454,15 +436,13 @@ function buildTextOutput(results) {
 
   // ── Config-ready snippet ───────────────────────────────────────────────
 
-  lines.push("═".repeat(90));
-  lines.push("  CONFIG-READY SNIPPET (high + medium confidence only)");
-  lines.push("═".repeat(90));
+  lines.push("## Config-Ready Snippet (high + medium confidence only)");
   lines.push("");
-  lines.push("  Paste this into the `propDefaults` section of your");
-  lines.push("  `component-analytics.config.js` uiLibraries entry:");
+  lines.push("Paste this into the `propDefaults` section of your");
+  lines.push("`component-analytics.config.js` uiLibraries entry:");
   lines.push("");
-  lines.push("  ```js");
-  lines.push("  propDefaults: {");
+  lines.push("```js");
+  lines.push("propDefaults: {");
 
   // Group high + medium by component
   const configWorthy = results.filter(
@@ -481,13 +461,11 @@ function buildTextOutput(results) {
     const entries = props
       .map((r) => `${r.prop}: ${JSON.stringify(r.value)}`)
       .join(", ");
-    lines.push(`    ${comp}: { ${entries} },`);
+    lines.push(`  ${comp}: { ${entries} },`);
   }
 
-  lines.push("  },");
-  lines.push("  ```");
-  lines.push("");
-  lines.push("═".repeat(90));
+  lines.push("},");
+  lines.push("```");
   lines.push("");
 
   return lines.join("\n");
@@ -540,7 +518,7 @@ function main() {
   console.log("\n✅ JSON report saved");
 
   const textOutput = buildTextOutput(results);
-  fs.writeFileSync(path.join(outDir, "detected-prop-defaults.txt"), textOutput);
+  fs.writeFileSync(path.join(outDir, "detected-prop-defaults.md"), textOutput);
   console.log("✅ Text report saved");
 
   // Print top findings to console

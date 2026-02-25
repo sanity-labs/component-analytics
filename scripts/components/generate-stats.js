@@ -6,7 +6,7 @@ const CODEBASES = ["sanity", "canvas", "huey"];
 
 function generateStats(codebase) {
   const inputPath = `reports/${codebase}/all-components/all-components.json`;
-  const outputPath = `reports/${codebase}/all-components/stats.txt`;
+  const outputPath = `reports/${codebase}/all-components/stats.md`;
 
   // Check if input file exists
   if (!fs.existsSync(inputPath)) {
@@ -18,11 +18,7 @@ function generateStats(codebase) {
   const jsonData = JSON.parse(fs.readFileSync(inputPath, "utf8"));
 
   const lines = [];
-  lines.push("=".repeat(70));
-  lines.push(
-    `${codebase.toUpperCase()} - COMPONENT ANALYSIS - DETAILED STATISTICS`,
-  );
-  lines.push("=".repeat(70));
+  lines.push(`# ${codebase} — Component Analysis — Detailed Statistics`);
   lines.push("");
 
   // Calculate statistics
@@ -58,34 +54,31 @@ function generateStats(codebase) {
   components.sort((a, b) => b.instances - a.instances);
 
   // General Statistics
-  lines.push("GENERAL STATISTICS");
-  lines.push("-".repeat(70));
-  lines.push(`Total Unique Components:        ${components.length}`);
-  lines.push(`Total Component Instances:      ${totalInstances}`);
-  lines.push(`Total Unique Props Used:        ${totalProps}`);
-  lines.push(`Total Prop Usages:              ${totalPropUsages}`);
+  lines.push("## General Statistics");
+  lines.push("");
+  lines.push(`- **Total Unique Components:** ${components.length}`);
+  lines.push(`- **Total Component Instances:** ${totalInstances}`);
+  lines.push(`- **Total Unique Props Used:** ${totalProps}`);
+  lines.push(`- **Total Prop Usages:** ${totalPropUsages}`);
   lines.push(
-    `Avg Props per Component Type:   ${(totalProps / components.length).toFixed(2)}`,
+    `- **Avg Props per Component Type:** ${(totalProps / components.length).toFixed(2)}`,
   );
   lines.push(
-    `Avg Props per Instance:         ${(totalPropUsages / totalInstances).toFixed(2)}`,
+    `- **Avg Props per Instance:** ${(totalPropUsages / totalInstances).toFixed(2)}`,
   );
   lines.push("");
 
   // Top 20 Most Used Components
-  lines.push("TOP 20 MOST USED COMPONENTS");
-  lines.push("-".repeat(70));
+  lines.push("## Top 20 Most Used Components");
+  lines.push("");
   lines.push(
-    "Rank | Component Name                    | Instances | Unique Props | Avg Props/Use",
+    "| Rank | Component Name | Instances | Unique Props | Avg Props/Use |",
   );
-  lines.push("-".repeat(70));
+  lines.push("| ---: | --- | ---: | ---: | ---: |");
   components.slice(0, 20).forEach((comp, index) => {
-    const rank = (index + 1).toString().padStart(4);
-    const name = comp.name.padEnd(33);
-    const instances = comp.instances.toString().padStart(9);
-    const props = comp.propsCount.toString().padStart(12);
-    const avg = comp.avgPropsPerInstance.toString().padStart(13);
-    lines.push(`${rank} | ${name} | ${instances} | ${props} | ${avg}`);
+    lines.push(
+      `| ${index + 1} | ${comp.name} | ${comp.instances} | ${comp.propsCount} | ${comp.avgPropsPerInstance} |`,
+    );
   });
   lines.push("");
 
@@ -93,18 +86,14 @@ function generateStats(codebase) {
   const componentsByProps = [...components].sort(
     (a, b) => b.propsCount - a.propsCount,
   );
-  lines.push("TOP 10 COMPONENTS WITH MOST UNIQUE PROPS");
-  lines.push("-".repeat(70));
-  lines.push(
-    "Rank | Component Name                    | Unique Props | Instances",
-  );
-  lines.push("-".repeat(70));
+  lines.push("## Top 10 Components with Most Unique Props");
+  lines.push("");
+  lines.push("| Rank | Component Name | Unique Props | Instances |");
+  lines.push("| ---: | --- | ---: | ---: |");
   componentsByProps.slice(0, 10).forEach((comp, index) => {
-    const rank = (index + 1).toString().padStart(4);
-    const name = comp.name.padEnd(33);
-    const props = comp.propsCount.toString().padStart(12);
-    const instances = comp.instances.toString().padStart(9);
-    lines.push(`${rank} | ${name} | ${props} | ${instances}`);
+    lines.push(
+      `| ${index + 1} | ${comp.name} | ${comp.propsCount} | ${comp.instances} |`,
+    );
   });
   lines.push("");
 
@@ -113,19 +102,15 @@ function generateStats(codebase) {
     .filter((c) => c.instances > 5) // Filter out rarely used components
     .sort((a, b) => b.avgPropsPerInstance - a.avgPropsPerInstance);
   lines.push(
-    "TOP 10 COMPONENTS WITH HIGHEST AVG PROPS PER USE (min 5 instances)",
+    "## Top 10 Components with Highest Avg Props per Use (min 5 instances)",
   );
-  lines.push("-".repeat(70));
-  lines.push(
-    "Rank | Component Name                    | Avg Props/Use | Instances",
-  );
-  lines.push("-".repeat(70));
+  lines.push("");
+  lines.push("| Rank | Component Name | Avg Props/Use | Instances |");
+  lines.push("| ---: | --- | ---: | ---: |");
   componentsByAvgProps.slice(0, 10).forEach((comp, index) => {
-    const rank = (index + 1).toString().padStart(4);
-    const name = comp.name.padEnd(33);
-    const avg = comp.avgPropsPerInstance.toString().padStart(13);
-    const instances = comp.instances.toString().padStart(9);
-    lines.push(`${rank} | ${name} | ${avg} | ${instances}`);
+    lines.push(
+      `| ${index + 1} | ${comp.name} | ${comp.avgPropsPerInstance} | ${comp.instances} |`,
+    );
   });
   lines.push("");
 
@@ -149,17 +134,13 @@ function generateStats(codebase) {
     }
   });
 
-  lines.push("COMPONENT USAGE DISTRIBUTION");
-  lines.push("-".repeat(70));
-  lines.push("Range                | Component Count | Percentage");
-  lines.push("-".repeat(70));
+  lines.push("## Component Usage Distribution");
+  lines.push("");
+  lines.push("| Range | Component Count | Percentage |");
+  lines.push("| --- | ---: | ---: |");
   distributionRanges.forEach((range) => {
-    const label = range.label.padEnd(20);
-    const count = range.count.toString().padStart(15);
-    const percentage = ((range.count / components.length) * 100)
-      .toFixed(1)
-      .padStart(10);
-    lines.push(`${label} | ${count} | ${percentage}%`);
+    const percentage = ((range.count / components.length) * 100).toFixed(1);
+    lines.push(`| ${range.label} | ${range.count} | ${percentage}% |`);
   });
   lines.push("");
 
@@ -180,24 +161,20 @@ function generateStats(codebase) {
     .map(([name, data]) => ({ name, ...data }))
     .sort((a, b) => b.count - a.count);
 
-  lines.push("TOP 20 MOST USED PROPS (ACROSS ALL COMPONENTS)");
-  lines.push("-".repeat(70));
-  lines.push(
-    "Rank | Prop Name                | Total Uses | Used in Components",
-  );
-  lines.push("-".repeat(70));
+  lines.push("## Top 20 Most Used Props (Across All Components)");
+  lines.push("");
+  lines.push("| Rank | Prop Name | Total Uses | Used in Components |");
+  lines.push("| ---: | --- | ---: | ---: |");
   sortedProps.slice(0, 20).forEach((prop, index) => {
-    const rank = (index + 1).toString().padStart(4);
-    const name = prop.name.padEnd(24);
-    const count = prop.count.toString().padStart(10);
-    const comps = prop.components.toString().padStart(18);
-    lines.push(`${rank} | ${name} | ${count} | ${comps}`);
+    lines.push(
+      `| ${index + 1} | ${prop.name} | ${prop.count} | ${prop.components} |`,
+    );
   });
   lines.push("");
 
-  lines.push("=".repeat(70));
-  lines.push("Report generated successfully!");
-  lines.push("=".repeat(70));
+  lines.push("---");
+  lines.push("");
+  lines.push("*Report generated successfully.*");
 
   // Ensure output directory exists
   const outputDir = path.dirname(outputPath);

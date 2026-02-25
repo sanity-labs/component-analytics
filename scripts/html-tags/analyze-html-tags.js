@@ -246,7 +246,7 @@ function aggregateResults(fileResults) {
 // ─── Report: Text ─────────────────────────────────────────────────────────────
 
 /**
- * Format a ranked table of tags for the text report.
+ * Format a ranked table of tags for the markdown report.
  *
  * @param {Array<[string, number]>} sorted      - Sorted `[tag, count]` pairs.
  * @param {Object<string, string>}  categoryMap - Tag → category lookup.
@@ -255,28 +255,14 @@ function aggregateResults(fileResults) {
  */
 function formatTagTable(sorted, categoryMap, limit = 30) {
   const lines = [];
-  lines.push(
-    "  " +
-      "Rank".padEnd(6) +
-      "Tag".padEnd(22) +
-      "Instances".padStart(10) +
-      "  " +
-      "Category".padEnd(12),
-  );
-  lines.push("  " + "-".repeat(54));
+  lines.push("| Rank | Tag | Instances | Category |");
+  lines.push("| ---: | --- | ---: | --- |");
 
   const top = sorted.slice(0, limit);
   for (let i = 0; i < top.length; i++) {
     const [tag, count] = top[i];
     const category = getTagCategory(tag, categoryMap);
-    lines.push(
-      "  " +
-        String(i + 1).padEnd(6) +
-        tag.padEnd(22) +
-        String(count).padStart(10) +
-        "  " +
-        category.padEnd(12),
-    );
+    lines.push(`| ${i + 1} | ${tag} | ${count} | ${category} |`);
   }
   return lines;
 }
@@ -298,29 +284,18 @@ function formatCategoryBreakdown(tags, total, categoryMap) {
   const sorted = sortByCount(categoryTotals);
 
   const lines = [];
-  lines.push("  USAGE BY CATEGORY");
-  lines.push(
-    "  " +
-      "Category".padEnd(16) +
-      "Instances".padStart(10) +
-      "  " +
-      "% of Total".padStart(10),
-  );
-  lines.push("  " + "-".repeat(40));
+  lines.push("#### Usage by Category");
+  lines.push("");
+  lines.push("| Category | Instances | % of Total |");
+  lines.push("| --- | ---: | ---: |");
   for (const [cat, count] of sorted) {
-    lines.push(
-      "  " +
-        cat.padEnd(16) +
-        String(count).padStart(10) +
-        "  " +
-        (pct(count, total) + "%").padStart(10),
-    );
+    lines.push(`| ${cat} | ${count} | ${pct(count, total)}% |`);
   }
   return lines;
 }
 
 /**
- * Format the per-codebase section of the text report.
+ * Format the per-codebase section of the markdown report.
  *
  * @param {string}              codebase    - Codebase name.
  * @param {AggregatedTagResult} data        - Aggregated results.
@@ -329,17 +304,16 @@ function formatCategoryBreakdown(tags, total, categoryMap) {
  */
 function formatCodebaseSection(codebase, data, categoryMap) {
   const lines = [];
-  lines.push("─".repeat(80));
-  lines.push(`  CODEBASE: ${codebase.toUpperCase()}`);
-  lines.push("─".repeat(80));
+  lines.push(`## ${codebase}`);
   lines.push("");
-  lines.push(`  Files analyzed:     ${data.fileCount}`);
-  lines.push(`  Files with HTML:    ${data.filesWithHTML}`);
-  lines.push(`  Unique tags:        ${data.uniqueTags}`);
-  lines.push(`  Total instances:    ${data.totalInstances}`);
+  lines.push(`- **Files analyzed:** ${data.fileCount}`);
+  lines.push(`- **Files with HTML:** ${data.filesWithHTML}`);
+  lines.push(`- **Unique tags:** ${data.uniqueTags}`);
+  lines.push(`- **Total instances:** ${data.totalInstances}`);
   lines.push("");
 
-  lines.push("  TOP 30 MOST USED HTML TAGS");
+  lines.push("### Top 30 Most Used HTML Tags");
+  lines.push("");
   lines.push(...formatTagTable(sortByCount(data.tags), categoryMap));
   lines.push("");
   lines.push(
@@ -358,9 +332,7 @@ function formatCodebaseSection(codebase, data, categoryMap) {
  */
 function formatAggregateSection(results, categoryMap) {
   const lines = [];
-  lines.push("═".repeat(80));
-  lines.push("  AGGREGATE - ALL CODEBASES COMBINED");
-  lines.push("═".repeat(80));
+  lines.push("## Aggregate — All Codebases Combined");
   lines.push("");
 
   /** @type {Object<string, number>} */
@@ -376,22 +348,21 @@ function formatAggregateSection(results, categoryMap) {
     totalInstances += data.totalInstances;
   }
 
-  lines.push(`  Total files:        ${totalFiles}`);
-  lines.push(`  Files with HTML:    ${totalFilesWithHTML}`);
-  lines.push(`  Unique tags:        ${Object.keys(allTags).length}`);
-  lines.push(`  Total instances:    ${totalInstances}`);
+  lines.push(`- **Total files:** ${totalFiles}`);
+  lines.push(`- **Files with HTML:** ${totalFilesWithHTML}`);
+  lines.push(`- **Unique tags:** ${Object.keys(allTags).length}`);
+  lines.push(`- **Total instances:** ${totalInstances}`);
   lines.push("");
 
-  lines.push("  TOP 30 MOST USED HTML TAGS (ALL CODEBASES)");
-  lines.push(...formatTagTable(sortByCount(allTags), categoryMap));
+  lines.push("### Top 30 Most Used HTML Tags (All Codebases)");
   lines.push("");
-  lines.push("═".repeat(80));
+  lines.push(...formatTagTable(sortByCount(allTags), categoryMap));
   lines.push("");
   return lines;
 }
 
 /**
- * Generate the full plain-text report.
+ * Generate the full markdown report.
  *
  * @param {Object<string, AggregatedTagResult | null>} results - Keyed by codebase name.
  * @returns {string}
@@ -400,9 +371,7 @@ function generateTextReport(results) {
   const categoryMap = buildTagCategoryMap();
   const lines = [];
 
-  lines.push("═".repeat(80));
-  lines.push("  HTML TAG USAGE ANALYSIS - ALL CODEBASES");
-  lines.push("═".repeat(80));
+  lines.push("# HTML Tag Usage Analysis");
   lines.push("");
 
   for (const [codebase, data] of Object.entries(results)) {

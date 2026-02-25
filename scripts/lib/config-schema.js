@@ -39,14 +39,26 @@
  */
 
 /**
+ * @typedef {object} PropComboEntry
+ * @property {string}   component - PascalCase component name to analyse
+ *   (must be one of the tracked components from `uiLibraries`).
+ * @property {string[]} props     - Two or more prop names whose value
+ *   combinations should be counted.  Order matters — it determines column
+ *   order in the generated reports.
+ */
+
+/**
  * @typedef {object} StudioAnalysisConfig
- * @property {CodebaseEntry[]} codebases      - Codebases to analyse.
- * @property {UILibrary[]}     uiLibraries    - UI component libraries to measure.
- * @property {FileConfig}      files          - File-scanning settings.
- * @property {string[]}        otherUIPatterns - Import-source substrings that
+ * @property {CodebaseEntry[]}  codebases      - Codebases to analyse.
+ * @property {UILibrary[]}      uiLibraries    - UI component libraries to measure.
+ * @property {FileConfig}       files          - File-scanning settings.
+ * @property {string[]}         otherUIPatterns - Import-source substrings that
  *   identify third-party UI libraries (for the sources report's "other UI"
  *   category).  These are libraries that are neither the tracked library nor
  *   internal/relative code.
+ * @property {PropComboEntry[]} [propCombos]   - Optional list of component +
+ *   prop-set pairs to cross-tabulate.  For each entry the analyser counts how
+ *   often each unique combination of prop values appears across all codebases.
  */
 
 module.exports = {};
