@@ -2,18 +2,21 @@
 
 Measures React component usage for a UI component library. Uses [React Scanner](https://github.com/moroshko/react-scanner) and custom AST-based analyzers to produce actionable reports on component usage, HTML tag prevalence, customization patterns, prop surface area, and line ownership across configurable codebases.
 
-All settings — which codebases to scan, which UI libraries to measure, and which components to track — are controlled by a single configuration file: **`component-analytics.config.js`**.
+All settings — which codebases to scan, which UI libraries to measure, and which components to track — are controlled by a single configuration file: **`component-analytics.config.js`**. This file is not committed to the repository — copy the included example to get started.
 
 ## Quick Start
 
 ```bash
 npm install
 
-# 1. Edit the config file to match your project
+# 1. Copy the example config and edit it to match your project
+cp component-analytics.config.example.js component-analytics.config.js
+
+# 2. Edit the config file
 #    (codebases, UI libraries, components to track)
 vi component-analytics.config.js
 
-# 2. Run every analysis
+# 3. Run every analysis
 npm run analyze
 
 # Or run a single step
@@ -36,7 +39,13 @@ All project settings live in a single file at the project root:
 component-analytics.config.js
 ```
 
-Edit this file to control **what** gets analysed. Every analysis script reads from it automatically.
+This file is **not checked into the repository** — it's `.gitignore`d so each developer/environment can have its own configuration without merge conflicts. An example is provided:
+
+```bash
+cp component-analytics.config.example.js component-analytics.config.js
+```
+
+Edit the copy to control **what** gets analysed. Every analysis script reads from it automatically. If the config file is missing you'll see an error with instructions when you run any analysis command.
 
 ### Codebases
 

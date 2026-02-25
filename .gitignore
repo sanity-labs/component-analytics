@@ -2,6 +2,9 @@
 
 node_modules
 
+# User-specific config (copy component-analytics.config.example.js to get started)
+component-analytics.config.js
+
 codebases
 
 # Only ignore the root-level reports directory
