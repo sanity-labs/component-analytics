@@ -1730,7 +1730,6 @@ describe("generateSummaryText", () => {
     });
 
     expect(text).toContain(`Per-Component ${UI_LIBRARY_NAMES} Analysis`);
-  });
 
   test("includes component name in ranked table", () => {
     const reports = {

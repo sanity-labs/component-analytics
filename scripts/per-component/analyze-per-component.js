@@ -887,6 +887,14 @@ function generateSummaryText(reports) {
         `> ⚠ ${r.totalDefaultUsages} prop usages explicitly set to their default value`,
       );
     }
+
+    // Show total default usages for this component
+    if (r.totalDefaultUsages > 0) {
+      lines.push("");
+      lines.push(
+        `  ⚠ ${r.totalDefaultUsages} prop usages explicitly set to their default value`,
+      );
+    }
     lines.push("");
   }
 

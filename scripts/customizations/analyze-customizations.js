@@ -765,6 +765,7 @@ function generateTextReport(results) {
   lines.push(
     `# ${UI_LIBRARY_NAMES} Customization Analysis — Inline Styles & styled()`,
   );
+
   lines.push("");
 
   for (const [codebase, data] of Object.entries(results)) {
