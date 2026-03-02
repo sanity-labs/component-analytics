@@ -311,7 +311,51 @@ function classifyValue(raw) {
   if (/^['"](.*)['"]$/.test(raw)) return raw.slice(1, -1);
 
   // Array literal: [1, 2, 3]
-  if (/^\[.*\]$/.test(raw)) return "<array>";
+  if (/^\[.*\]$/.test(raw)) {
+    const inner = raw.slice(1, -1).trim();
+    if (inner === "") return "[]";
+
+    // Split on commas that are not inside quotes or brackets
+    const elements = [];
+    let depth = 0;
+    let inStr = null;
+    let start = 0;
+    for (let i = 0; i < inner.length; i++) {
+      const ch = inner[i];
+      if (inStr) {
+        if (ch === inStr) inStr = null;
+      } else if (ch === "'" || ch === '"') {
+        inStr = ch;
+      } else if (ch === "[" || ch === "(") {
+        depth++;
+      } else if (ch === "]" || ch === ")") {
+        depth--;
+      } else if (ch === "," && depth === 0) {
+        elements.push(inner.slice(start, i).trim());
+        start = i + 1;
+      }
+    }
+    elements.push(inner.slice(start).trim());
+
+    // Check if every element is a simple literal (number, string, boolean)
+    const parsed = [];
+    let allLiteral = true;
+    for (const el of elements) {
+      if (el === "true" || el === "false") {
+        parsed.push(el);
+      } else if (/^-?\d+(\.\d+)?$/.test(el)) {
+        parsed.push(el);
+      } else if (/^['"](.*)['"]$/.test(el)) {
+        parsed.push('"' + el.slice(1, -1) + '"');
+      } else {
+        allLiteral = false;
+        break;
+      }
+    }
+
+    if (allLiteral) return "[" + parsed.join(", ") + "]";
+    return "<array>";
+  }
 
   // Object literal: { key: value }
   if (/^\{.*\}$/.test(raw)) return "<object>";
@@ -347,13 +391,23 @@ function normalizeValue(classified) {
   if (classified === "true" || classified === "false") return classified;
   if (/^-?\d+(\.\d+)?$/.test(classified)) return classified;
 
+  // Keep literal array values when short enough to be useful
+  if (classified.startsWith("[") && classified.length <= 40) {
+    return classified;
+  }
+
   // Keep short string literals (common enum values like "ghost", "primary")
-  if (!classified.startsWith("<") && classified.length <= 30) {
+  if (
+    !classified.startsWith("<") &&
+    !classified.startsWith("[") &&
+    classified.length <= 30
+  ) {
     return `"${classified}"`;
   }
 
   // Collapse dynamic categories
   if (classified.startsWith("<variable:")) return "<variable>";
+  if (classified.startsWith("[")) return "<array>";
   return classified;
 }
 
