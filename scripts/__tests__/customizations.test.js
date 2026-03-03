@@ -1008,7 +1008,7 @@ describe("generateTextReport", () => {
 
   test("includes codebase name", () => {
     const report = generateTextReport(makeResults());
-    expect(report).toContain("SANITY");
+    expect(report).toContain("## sanity");
   });
 
   test("includes customization counts", () => {
@@ -1039,8 +1039,8 @@ describe("generateTextReport", () => {
       },
     };
     const report = generateTextReport(results);
-    expect(report).toContain("AGGREGATE");
-    expect(report).toContain("ALL CODEBASES COMBINED");
+    expect(report).toContain("Aggregate");
+    expect(report).toContain("All Codebases Combined");
   });
 
   test("skips null codebase results", () => {
@@ -1049,8 +1049,8 @@ describe("generateTextReport", () => {
       canvas: null,
     };
     const report = generateTextReport(results);
-    expect(report).toContain("SANITY");
-    expect(report).not.toContain("CANVAS");
+    expect(report).toContain("## sanity");
+    expect(report).not.toContain("## canvas");
   });
 
   test("handles codebase with no customizations", () => {
@@ -1079,7 +1079,7 @@ describe("generateTextReport", () => {
     const results = { sanity: null, canvas: null };
     const report = generateTextReport(results);
     expect(typeof report).toBe("string");
-    expect(report).toContain("AGGREGATE");
+    expect(report).toContain("Aggregate");
   });
 
   test("shows component names in report", () => {

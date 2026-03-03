@@ -538,7 +538,7 @@ describe("generateTextReport", () => {
       },
     };
     const report = generateTextReport(results);
-    expect(report).toContain("SANITY");
+    expect(report).toContain("## sanity");
   });
 
   test("includes aggregate section", () => {
@@ -559,8 +559,8 @@ describe("generateTextReport", () => {
       },
     };
     const report = generateTextReport(results);
-    expect(report).toContain("AGGREGATE");
-    expect(report).toContain("ALL CODEBASES COMBINED");
+    expect(report).toContain("Aggregate");
+    expect(report).toContain("All Codebases Combined");
   });
 
   test("includes statistics values", () => {
@@ -591,15 +591,15 @@ describe("generateTextReport", () => {
       canvas: null,
     };
     const report = generateTextReport(results);
-    expect(report).toContain("SANITY");
-    expect(report).not.toContain("CANVAS");
+    expect(report).toContain("## sanity");
+    expect(report).not.toContain("## canvas");
   });
 
   test("handles all codebases being null", () => {
     const results = { sanity: null, canvas: null };
     const report = generateTextReport(results);
     expect(typeof report).toBe("string");
-    expect(report).toContain("AGGREGATE");
+    expect(report).toContain("Aggregate");
   });
 
   test("handles empty tags in a codebase", () => {

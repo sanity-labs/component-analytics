@@ -43,9 +43,9 @@ describe("lib/constants", () => {
     });
 
     test("contains the expected codebase names", () => {
-      expect(CODEBASES).toContain("sanity");
-      expect(CODEBASES).toContain("canvas");
-      expect(CODEBASES).toContain("huey");
+      expect(CODEBASES).toContain("Studio");
+      expect(CODEBASES).toContain("Canvas");
+      expect(CODEBASES).toContain("Media Library");
     });
 
     test("has no duplicates", () => {
@@ -768,10 +768,10 @@ describe("Cross-module integration", () => {
   test("CODEBASES can be iterated to build a results map", () => {
     const results = {};
     for (const cb of CODEBASES) {
-      results[cb] = cb === "canvas" ? null : { files: 100 };
+      results[cb] = cb === "Canvas" ? null : { files: 100 };
     }
 
     const live = compact(results);
-    expect(Object.keys(live)).toEqual(["sanity", "huey"]);
+    expect(Object.keys(live)).toEqual(["Studio", "Media Library"]);
   });
 });

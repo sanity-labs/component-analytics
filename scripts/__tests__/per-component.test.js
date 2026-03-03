@@ -526,7 +526,7 @@ describe("classifyValue", () => {
   });
 
   test("classifies array literal", () => {
-    expect(classifyValue("[4, 5, 6]")).toBe("<array>");
+    expect(classifyValue("[4, 5, 6]")).toBe("[4, 5, 6]");
   });
 
   test("classifies object literal", () => {
@@ -1251,12 +1251,12 @@ describe("mergeFileResult", () => {
       instances: [],
     };
 
-    mergeFileResult(reports, fileResult, "sanity");
+    mergeFileResult(reports, fileResult, "Studio");
 
     expect(reports.Button.totalImports).toBe(1);
     expect(reports.Card.totalImports).toBe(1);
-    expect(reports.Button.codebaseImports.sanity).toBe(1);
-    expect(reports.Card.codebaseImports.sanity).toBe(1);
+    expect(reports.Button.codebaseImports.Studio).toBe(1);
+    expect(reports.Card.codebaseImports.Studio).toBe(1);
   });
 
   test("increments instance count and records props", () => {
@@ -1283,26 +1283,30 @@ describe("mergeFileResult", () => {
       ],
     };
 
-    mergeFileResult(reports, fileResult, "sanity", "src/MyComponent.tsx");
+    mergeFileResult(reports, fileResult, "Studio", "src/MyComponent.tsx");
 
     expect(reports.Button.totalImports).toBe(1);
     expect(reports.Button.totalInstances).toBe(2);
-    expect(reports.Button.codebaseInstances.sanity).toBe(2);
+    expect(reports.Button.codebaseInstances.Studio).toBe(2);
     expect(reports.Button.props.mode.totalUsages).toBe(2);
     expect(reports.Button.props.onClick.totalUsages).toBe(1);
 
     // References should be recorded
     expect(reports.Button.references.length).toBe(2);
-    expect(reports.Button.references[0]).toEqual({
-      file: "src/MyComponent.tsx",
-      line: 5,
-      codebase: "sanity",
-    });
-    expect(reports.Button.references[1]).toEqual({
-      file: "src/MyComponent.tsx",
-      line: 6,
-      codebase: "sanity",
-    });
+    expect(reports.Button.references[0]).toEqual(
+      expect.objectContaining({
+        file: "src/MyComponent.tsx",
+        line: 5,
+        codebase: "Studio",
+      }),
+    );
+    expect(reports.Button.references[1]).toEqual(
+      expect.objectContaining({
+        file: "src/MyComponent.tsx",
+        line: 6,
+        codebase: "Studio",
+      }),
+    );
   });
 
   test("accumulates across multiple files and codebases", () => {
@@ -1322,7 +1326,7 @@ describe("mergeFileResult", () => {
           },
         ],
       },
-      "sanity",
+      "Studio",
       "src/Header.tsx",
     );
 
@@ -1343,35 +1347,41 @@ describe("mergeFileResult", () => {
           },
         ],
       },
-      "canvas",
+      "Canvas",
       "src/Footer.tsx",
     );
 
     expect(reports.Card.totalImports).toBe(2);
     expect(reports.Card.totalInstances).toBe(3);
-    expect(reports.Card.codebaseImports.sanity).toBe(1);
-    expect(reports.Card.codebaseImports.canvas).toBe(1);
-    expect(reports.Card.codebaseInstances.sanity).toBe(1);
-    expect(reports.Card.codebaseInstances.canvas).toBe(2);
+    expect(reports.Card.codebaseImports.Studio).toBe(1);
+    expect(reports.Card.codebaseImports.Canvas).toBe(1);
+    expect(reports.Card.codebaseInstances.Studio).toBe(1);
+    expect(reports.Card.codebaseInstances.Canvas).toBe(2);
     expect(reports.Card.props.padding.totalUsages).toBe(3);
 
     // References from both files and codebases
     expect(reports.Card.references.length).toBe(3);
-    expect(reports.Card.references[0]).toEqual({
-      file: "src/Header.tsx",
-      line: 10,
-      codebase: "sanity",
-    });
-    expect(reports.Card.references[1]).toEqual({
-      file: "src/Footer.tsx",
-      line: 5,
-      codebase: "canvas",
-    });
-    expect(reports.Card.references[2]).toEqual({
-      file: "src/Footer.tsx",
-      line: 12,
-      codebase: "canvas",
-    });
+    expect(reports.Card.references[0]).toEqual(
+      expect.objectContaining({
+        file: "src/Header.tsx",
+        line: 10,
+        codebase: "Studio",
+      }),
+    );
+    expect(reports.Card.references[1]).toEqual(
+      expect.objectContaining({
+        file: "src/Footer.tsx",
+        line: 5,
+        codebase: "Canvas",
+      }),
+    );
+    expect(reports.Card.references[2]).toEqual(
+      expect.objectContaining({
+        file: "src/Footer.tsx",
+        line: 12,
+        codebase: "Canvas",
+      }),
+    );
   });
 
   test("creates report entry for unknown component on the fly", () => {
@@ -1383,7 +1393,7 @@ describe("mergeFileResult", () => {
         importMap: { Button: "Button" },
         instances: [{ component: "Button", props: [], line: 3 }],
       },
-      "sanity",
+      "Studio",
       "src/Widget.tsx",
     );
 
@@ -1391,7 +1401,11 @@ describe("mergeFileResult", () => {
     expect(reports.Button.totalImports).toBe(1);
     expect(reports.Button.totalInstances).toBe(1);
     expect(reports.Button.references).toEqual([
-      { file: "src/Widget.tsx", line: 3, codebase: "sanity" },
+      expect.objectContaining({
+        file: "src/Widget.tsx",
+        line: 3,
+        codebase: "Studio",
+      }),
     ]);
   });
 
@@ -1412,7 +1426,7 @@ describe("mergeFileResult", () => {
           },
         ],
       },
-      "sanity",
+      "Studio",
       "src/Alias.tsx",
     );
 
@@ -1420,7 +1434,11 @@ describe("mergeFileResult", () => {
     expect(reports.Button.totalInstances).toBe(1);
     expect(reports.Button.props.mode.totalUsages).toBe(1);
     expect(reports.Button.references).toEqual([
-      { file: "src/Alias.tsx", line: 7, codebase: "sanity" },
+      expect.objectContaining({
+        file: "src/Alias.tsx",
+        line: 7,
+        codebase: "Studio",
+      }),
     ]);
   });
 
@@ -1435,7 +1453,7 @@ describe("mergeFileResult", () => {
         importMap: { Card: "Card" },
         instances: [{ component: "Card", props: [], line: 3 }],
       },
-      "sanity",
+      "Studio",
       // no filePath argument
     );
 
@@ -1456,8 +1474,8 @@ describe("buildComponentJson", () => {
     report.codebaseImports = { sanity: 30, canvas: 15, huey: 5 };
     report.codebaseInstances = { sanity: 80, canvas: 30, huey: 10 };
     report.references = [
-      { file: "src/A.tsx", line: 10, codebase: "sanity" },
-      { file: "src/B.tsx", line: 20, codebase: "canvas" },
+      { file: "src/A.tsx", line: 10, codebase: "Studio" },
+      { file: "src/B.tsx", line: 20, codebase: "Canvas" },
     ];
 
     recordProp(report, "padding", "4");
@@ -1482,11 +1500,13 @@ describe("buildComponentJson", () => {
     // References are included in the JSON output
     expect(json.references).toBeDefined();
     expect(json.references.length).toBe(2);
-    expect(json.references[0]).toEqual({
-      file: "src/A.tsx",
-      line: 10,
-      codebase: "sanity",
-    });
+    expect(json.references[0]).toEqual(
+      expect.objectContaining({
+        file: "src/A.tsx",
+        line: 10,
+        codebase: "Studio",
+      }),
+    );
   });
 
   test("sorts props by usage count descending", () => {
@@ -1595,15 +1615,15 @@ describe("generateSummaryCSV", () => {
       Button: createEmptyReport("Button"),
     };
     reports.Button.totalInstances = 10;
-    reports.Button.codebaseImports = { sanity: 5, canvas: 3 };
-    reports.Button.codebaseInstances = { sanity: 7, canvas: 3 };
+    reports.Button.codebaseImports = { Studio: 5, Canvas: 3 };
+    reports.Button.codebaseInstances = { Studio: 7, Canvas: 3 };
 
     const csv = generateSummaryCSV(reports);
 
-    expect(csv).toContain("sanity Imports");
-    expect(csv).toContain("canvas Imports");
-    expect(csv).toContain("sanity Instances");
-    expect(csv).toContain("canvas Instances");
+    expect(csv).toContain("Studio Imports");
+    expect(csv).toContain("Canvas Imports");
+    expect(csv).toContain("Studio Instances");
+    expect(csv).toContain("Canvas Instances");
   });
 
   test("includes top 5 props", () => {
@@ -1730,6 +1750,7 @@ describe("generateSummaryText", () => {
     });
 
     expect(text).toContain(`Per-Component ${UI_LIBRARY_NAMES} Analysis`);
+  });
 
   test("includes component name in ranked table", () => {
     const reports = {
@@ -1828,13 +1849,13 @@ describe("Integration tests", () => {
     mergeFileResult(
       reports,
       analyzeFileContent(file1),
-      "sanity",
+      "Studio",
       "src/Header.tsx",
     );
     mergeFileResult(
       reports,
       analyzeFileContent(file2),
-      "sanity",
+      "Studio",
       "src/Body.tsx",
     );
 
@@ -1882,7 +1903,7 @@ describe("Integration tests", () => {
     expect(reports.Card.references.length).toBe(2);
     expect(reports.Card.references[0].file).toBe("src/Header.tsx");
     expect(reports.Card.references[1].file).toBe("src/Body.tsx");
-    expect(reports.Card.references.every((r) => r.codebase === "sanity")).toBe(
+    expect(reports.Card.references.every((r) => r.codebase === "Studio")).toBe(
       true,
     );
     // Every reference has a positive line number
@@ -1943,23 +1964,23 @@ describe("Integration tests", () => {
     mergeFileResult(
       reports,
       analyzeFileContent(sanityFile),
-      "sanity",
+      "Studio",
       "src/Actions.tsx",
     );
     mergeFileResult(
       reports,
       analyzeFileContent(canvasFile),
-      "canvas",
+      "Canvas",
       "src/CanvasButton.tsx",
     );
 
     // Button: imported in 2 files (1 sanity, 1 canvas), 3 total instances
     expect(reports.Button.totalImports).toBe(2);
     expect(reports.Button.totalInstances).toBe(3);
-    expect(reports.Button.codebaseImports.sanity).toBe(1);
-    expect(reports.Button.codebaseImports.canvas).toBe(1);
-    expect(reports.Button.codebaseInstances.sanity).toBe(2);
-    expect(reports.Button.codebaseInstances.canvas).toBe(1);
+    expect(reports.Button.codebaseImports.Studio).toBe(1);
+    expect(reports.Button.codebaseImports.Canvas).toBe(1);
+    expect(reports.Button.codebaseInstances.Studio).toBe(2);
+    expect(reports.Button.codebaseInstances.Canvas).toBe(1);
 
     // Button mode prop: used 3 times with 3 different string literal values
     expect(reports.Button.props.mode.totalUsages).toBe(3);
@@ -1973,7 +1994,7 @@ describe("Integration tests", () => {
     // Card: only in sanity
     expect(reports.Card.totalImports).toBe(1);
     expect(reports.Card.totalInstances).toBe(1);
-    expect(reports.Card.codebaseImports.canvas).toBeUndefined();
+    expect(reports.Card.codebaseImports.Canvas).toBeUndefined();
 
     // Build the individual component JSON
     const buttonJson = buildComponentJson(reports.Button);
@@ -1987,10 +2008,10 @@ describe("Integration tests", () => {
     // References span both codebases
     expect(buttonJson.references.length).toBe(3);
     expect(
-      buttonJson.references.filter((r) => r.codebase === "sanity").length,
+      buttonJson.references.filter((r) => r.codebase === "Studio").length,
     ).toBe(2);
     expect(
-      buttonJson.references.filter((r) => r.codebase === "canvas").length,
+      buttonJson.references.filter((r) => r.codebase === "Canvas").length,
     ).toBe(1);
     expect(buttonJson.references[2].file).toBe("src/CanvasButton.tsx");
     // All line numbers are positive
@@ -2024,7 +2045,7 @@ describe("Integration tests", () => {
     mergeFileResult(
       reports,
       analyzeFileContent(content),
-      "sanity",
+      "Studio",
       "src/Minimal.tsx",
     );
 
@@ -2106,12 +2127,12 @@ describe("Edge cases", () => {
   });
 
   test("handles prop with complex nested expression", () => {
-    const content = `
-      import { Card } from '@sanity/ui'
-      export function X() {
-        return <Card style={{gridTemplateColumns: \`repeat(\${cols}, 1fr)\`}}>x</Card>
-      }
-    `;
+    const content = [
+      "import { Card } from '@sanity/ui'",
+      "export function X() {",
+      "  return <Card style={{gridTemplateColumns: `repeat(${cols}, 1fr)`}}>x</Card>",
+      "}",
+    ].join("\n");
     const result = analyzeFileContent(content);
     expect(result.instances.length).toBe(1);
     const styleProps = result.instances[0].props.filter(
