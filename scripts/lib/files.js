@@ -106,13 +106,31 @@ function ensureDir(dirPath) {
 }
 
 /**
+ * Absolute path to the top-level `reports/` directory.
+ * @type {string}
+ */
+const REPORTS_ROOT = path.resolve(__dirname, "../../reports");
+
+/**
+ * Remove and recreate the `reports/` directory so that every run
+ * starts from a clean slate.  This prevents stale reports from
+ * lingering when codebases or scan types are renamed or removed.
+ */
+function clearReports() {
+  if (fs.existsSync(REPORTS_ROOT)) {
+    fs.rmSync(REPORTS_ROOT, { recursive: true, force: true });
+  }
+  fs.mkdirSync(REPORTS_ROOT, { recursive: true });
+}
+
+/**
  * Resolve a report output directory under `reports/`.
  *
  * @param {string} subdir - Subdirectory name, e.g. `"html-tags"`.
  * @returns {string} Absolute path.
  */
 function reportDir(subdir) {
-  return path.resolve(__dirname, `../../reports/${subdir}`);
+  return path.join(REPORTS_ROOT, subdir);
 }
 
 /**
@@ -159,6 +177,8 @@ module.exports = {
   findFiles,
   readSafe,
   ensureDir,
+  REPORTS_ROOT,
+  clearReports,
   reportDir,
   writeReports,
 };

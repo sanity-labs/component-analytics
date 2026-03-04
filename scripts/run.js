@@ -15,7 +15,7 @@
  *   node scripts/run.js --step scan  # run only the React Scanner step
  *
  * Available steps (run in this order by default):
- *   scan           React Scanner (components + ui-wrappers for every codebase)
+ *   scan           React Scanner (components + wrappers for every codebase)
  *   sources        UI component source classification
  *   html-tags      Native HTML/SVG tag usage
  *   customizations Inline style= and styled() detection
@@ -27,7 +27,8 @@
 const { execSync } = require("child_process");
 const path = require("path");
 
-const { CODEBASES } = require("./lib/constants");
+const { CODEBASES, ALL_UI_LIBRARIES } = require("./lib/constants");
+const { clearReports } = require("./lib/files");
 
 // ─── Paths ────────────────────────────────────────────────────────────────────
 
@@ -63,7 +64,9 @@ function runScript(scriptPath) {
 /**
  * Run React Scanner for every codebase with a given SCAN_TYPE.
  *
- * @param {string} scanType - One of: components, ui-wrappers, ui-library, icons, all.
+ * @param {string} scanType - A key from the SCAN_TYPES map built by
+ *   react-scanner.config.js (e.g. "components", "library:Sanity UI",
+ *   "wrappers:Sanity UI").
  */
 function runScannerForAll(scanType) {
   for (const codebase of CODEBASES) {
@@ -90,18 +93,26 @@ const STEPS = {
     console.log("  STEP: React Scanner");
     console.log("═".repeat(60));
 
-    // 1. All components (scoped to codebase)
+    // 1. All components (no import filter)
     console.log("\n── Scanning: components ──");
     runScannerForAll("components");
     runScript("components/convert-to-csv.js");
     runScript("components/create-summary-csv.js");
     runScript("components/generate-stats.js");
 
-    // 2. UI wrapper layer
-    console.log("\n── Scanning: ui-wrappers ──");
-    runScannerForAll("ui-wrappers");
-    runScript("ui-components/convert-ui-components-to-csv.js");
-    runScript("ui-components/create-ui-components-summary.js");
+    // 2. Wrapper layers — one scan per library that has wrapperSources
+    const wrapperLibs = ALL_UI_LIBRARIES.filter(
+      (lib) => lib.wrapperSources && lib.wrapperSources.length > 0,
+    );
+    for (const lib of wrapperLibs) {
+      const scanType = `wrappers:${lib.name}`;
+      console.log(`\n── Scanning: ${scanType} ──`);
+      runScannerForAll(scanType);
+    }
+    if (wrapperLibs.length > 0) {
+      runScript("ui-components/convert-ui-components-to-csv.js");
+      runScript("ui-components/create-ui-components-summary.js");
+    }
   },
 
   /**
@@ -226,6 +237,10 @@ function main() {
     const stepNames = Object.keys(STEPS);
     console.log(`  Running:   all ${stepNames.length} steps`);
     console.log(`  Steps:     ${stepNames.join(" → ")}`);
+    console.log("");
+
+    console.log("  Clearing previous reports…");
+    clearReports();
     console.log("");
 
     for (const [name, fn] of Object.entries(STEPS)) {

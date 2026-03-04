@@ -529,8 +529,27 @@ describe("classifyValue", () => {
     expect(classifyValue("[4, 5, 6]")).toBe("[4, 5, 6]");
   });
 
-  test("classifies object literal", () => {
-    expect(classifyValue('{color: "red"}')).toBe("<object>");
+  test("classifies object literal with simple literal values", () => {
+    expect(classifyValue('{color: "red"}')).toBe('{color: "red"}');
+    expect(classifyValue("{size: 4}")).toBe("{size: 4}");
+    expect(classifyValue("{bold: true}")).toBe("{bold: true}");
+    expect(classifyValue('{color: "red", size: 4, bold: true}')).toBe(
+      '{color: "red", size: 4, bold: true}',
+    );
+  });
+
+  test("classifies empty object literal", () => {
+    expect(classifyValue("{}")).toBe("{}");
+  });
+
+  test("classifies object with dynamic values as <object>", () => {
+    expect(classifyValue("{color: myVar}")).toBe("<object>");
+    expect(classifyValue("{color: getColor()}")).toBe("<object>");
+    expect(classifyValue("{color: a ? b : c}")).toBe("<object>");
+  });
+
+  test("classifies object with nested object as <object>", () => {
+    expect(classifyValue('{style: {color: "red"}}')).toBe("<object>");
   });
 
   test("classifies arrow function", () => {
@@ -587,6 +606,18 @@ describe("normalizeValue", () => {
   test("collapses <variable:X> to <variable>", () => {
     expect(normalizeValue("<variable:myValue>")).toBe("<variable>");
     expect(normalizeValue("<variable:theme.color>")).toBe("<variable>");
+  });
+
+  test("keeps short literal object values", () => {
+    expect(normalizeValue('{color: "red"}')).toBe('{color: "red"}');
+    expect(normalizeValue("{size: 4}")).toBe("{size: 4}");
+    expect(normalizeValue("{}")).toBe("{}");
+  });
+
+  test("collapses long literal object values to <object>", () => {
+    const longObj = '{firstName: "Alexander", lastName: "Hamilton"}';
+    expect(longObj.length).toBeGreaterThan(40);
+    expect(normalizeValue(longObj)).toBe("<object>");
   });
 
   test("preserves other category labels", () => {
@@ -1497,6 +1528,10 @@ describe("buildComponentJson", () => {
     expect(json.uniqueProps).toBe(2);
     expect(json.avgPropsPerInstance).toBeCloseTo(4 / 120, 2);
 
+    // unsetInstances = totalInstances − totalUsages for each prop
+    expect(json.props.padding.unsetInstances).toBe(117); // 120 − 3
+    expect(json.props.tone.unsetInstances).toBe(119); // 120 − 1
+
     // References are included in the JSON output
     expect(json.references).toBeDefined();
     expect(json.references.length).toBe(2);
@@ -1541,6 +1576,21 @@ describe("buildComponentJson", () => {
     expect(json.props.padding.values["4"]).toBe(3);
     expect(json.props.padding.values["2"]).toBe(1);
     expect(json.props.padding.totalUsages).toBe(4);
+    expect(json.props.padding.unsetInstances).toBe(6); // 10 instances − 4 usages
+  });
+
+  test("computes unsetInstances correctly for each prop", () => {
+    const report = createEmptyReport("Card");
+    report.totalInstances = 20;
+
+    // padding used in 5 instances, tone used in 20 (all of them)
+    for (let i = 0; i < 5; i++) recordProp(report, "padding", "4");
+    for (let i = 0; i < 20; i++) recordProp(report, "tone", "'primary'");
+
+    const json = buildComponentJson(report);
+
+    expect(json.props.padding.unsetInstances).toBe(15); // 20 − 5
+    expect(json.props.tone.unsetInstances).toBe(0); // 20 − 20
   });
 
   test("handles report with no props", () => {

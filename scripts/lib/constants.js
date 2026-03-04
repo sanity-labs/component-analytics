@@ -45,27 +45,11 @@ function findConfigPath() {
 }
 
 /**
- * Check whether we are running inside a Jest test worker.
- *
- * Jest sets `JEST_WORKER_ID` in every worker process.  We use this to
- * decide whether a missing config file is a fatal error (interactive
- * usage) or an expected situation (unit tests with default fallback).
- *
- * @returns {boolean}
- */
-function isTestEnvironment() {
-  return typeof process.env.JEST_WORKER_ID !== "undefined";
-}
-
-/**
  * Load and return the user configuration object.
  *
- * When the config file is missing and we are NOT in a test
- * environment, an error is printed with instructions for creating the
- * config from the example file, and the process exits.
- *
- * Returns a minimal default config when running inside Jest so that
- * unit tests work without a real config file on disk.
+ * When the config file is missing, an error is printed with
+ * instructions for creating the config from the example file,
+ * and the process exits.
  *
  * @returns {import("./config-schema").StudioAnalysisConfig}
  */
@@ -75,70 +59,44 @@ function loadConfig() {
     return require(configPath);
   }
 
-  // Outside of tests, a missing config is a fatal error.
-  if (!isTestEnvironment()) {
-    const projectRoot = path.resolve(__dirname, "../..");
-    const expected = path.join(projectRoot, "component-analytics.config.js");
-    const example = path.join(
-      projectRoot,
-      "component-analytics.config.example.js",
-    );
+  const projectRoot = path.resolve(__dirname, "../..");
+  const expected = path.join(projectRoot, "component-analytics.config.js");
+  const example = path.join(
+    projectRoot,
+    "component-analytics.config.example.js",
+  );
 
-    console.error("");
-    console.error("❌ Configuration file not found:");
-    console.error(`   ${expected}`);
-    console.error("");
-    if (fs.existsSync(example)) {
-      console.error("   An example config exists. To get started, copy it:");
-      console.error("");
-      console.error(
-        "     cp component-analytics.config.example.js component-analytics.config.js",
-      );
-    } else {
-      console.error(
-        "   Create a component-analytics.config.js in the project root.",
-      );
-      console.error("   See the README for configuration details.");
-    }
-    console.error("");
-    process.exit(1);
+  const lines = ["", "❌ Configuration file not found:", `   ${expected}`, ""];
+
+  if (fs.existsSync(example)) {
+    lines.push(
+      "   An example config exists. To get started, copy it:",
+      "",
+      "     cp component-analytics.config.example.js component-analytics.config.js",
+    );
+  } else {
+    lines.push(
+      "   Create a component-analytics.config.js in the project root.",
+      "   See the README for configuration details.",
+    );
   }
 
-  // Fallback for test environments where the config file is absent
-  return {
-    codebases: [
-      { name: "sanity", path: "./codebases/sanity" },
-      { name: "canvas", path: "./codebases/canvas" },
-      { name: "huey", path: "./codebases/huey" },
-    ],
-    uiLibraries: [
-      {
-        name: "UI Library",
-        importSources: ["@sanity/ui"],
-        excludeSources: ["@sanity/ui/theme"],
-        components: [],
-        propDefaults: {},
-      },
-    ],
-    files: {
-      pattern: "**/*.{tsx,jsx}",
-      ignore: [
-        "**/node_modules/**",
-        "**/dist/**",
-        "**/build/**",
-        "**/*.test.*",
-        "**/*.spec.*",
-        "**/__tests__/**",
-        "**/*.stories.*",
-      ],
-    },
-    otherUIPatterns: [
-      "@radix-ui",
-      "styled-components",
-      "motion/react",
-      "framer-motion",
-    ],
-  };
+  lines.push(
+    "",
+    "   Then edit the file to define your codebases, UI libraries,",
+    "   and tracked components before running the analysis again.",
+    "",
+  );
+
+  const message = lines.join("\n");
+  console.error(message);
+
+  // Throw so the error is visible in both test and non-test contexts.
+  // In a normal process this will also produce a non-zero exit code.
+  throw new Error(
+    `Configuration file not found: ${expected}\n` +
+      "Copy component-analytics.config.example.js to component-analytics.config.js and edit it for your project.",
+  );
 }
 
 /** @type {import("./config-schema").StudioAnalysisConfig} */
@@ -194,6 +152,7 @@ const ALL_UI_LIBRARIES = (CONFIG.uiLibraries || []).map((lib) => ({
   excludeSources: lib.excludeSources || [],
   components: lib.components || [],
   propDefaults: lib.propDefaults || {},
+  wrapperSources: lib.wrapperSources || [],
 }));
 
 /**

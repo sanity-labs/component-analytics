@@ -1,13 +1,12 @@
 const fs = require("fs");
 const path = require("path");
 
-// List of codebases to analyze
-const CODEBASES = ["sanity", "canvas", "huey"];
+const { CODEBASES } = require("../lib/constants");
 
 function createUISummary(codebase) {
-  const inputPath = `reports/${codebase}/wrappers/wrappers.json`;
-  const summaryPath = `reports/${codebase}/wrappers/summary.csv`;
-  const statsPath = `reports/${codebase}/wrappers/stats.md`;
+  const inputPath = `reports/codebases/${codebase}/wrappers/wrappers.json`;
+  const summaryPath = `reports/codebases/${codebase}/wrappers/summary.csv`;
+  const statsPath = `reports/codebases/${codebase}/wrappers/stats.md`;
 
   // Check if input file exists
   if (!fs.existsSync(inputPath)) {

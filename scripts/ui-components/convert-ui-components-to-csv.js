@@ -1,12 +1,11 @@
 const fs = require("fs");
 const path = require("path");
 
-// List of codebases to analyze
-const CODEBASES = ["sanity", "canvas", "huey"];
+const { CODEBASES } = require("../lib/constants");
 
 function convertToCSV(codebase) {
-  const inputPath = `reports/${codebase}/wrappers/wrappers.json`;
-  const outputPath = `reports/${codebase}/wrappers/detailed.csv`;
+  const inputPath = `reports/codebases/${codebase}/wrappers/wrappers.json`;
+  const outputPath = `reports/codebases/${codebase}/wrappers/detailed.csv`;
 
   // Check if input file exists
   if (!fs.existsSync(inputPath)) {

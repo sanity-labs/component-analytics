@@ -21,9 +21,7 @@ module.exports = {
   // config file (i.e. the project root).
 
   codebases: [
-
     { name: "component-analytics-dashboard", path: "./dashboard/src" },
-
   ],
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -47,6 +45,13 @@ module.exports = {
       name: "Sanity UI",
       importSources: ["@sanity/ui"],
       excludeSources: ["@sanity/ui/theme"],
+
+      // Optional: if your codebase has an internal wrapper layer around
+      // this library, list the import-path substrings here.  A separate
+      // "wrappers" scan will measure how much code goes through the
+      // wrapper vs. importing the library directly.
+      //
+      // wrapperSources: ["ui-components"],
 
       components: [
         // ── Layout ────────────────────────────────────────────────
@@ -356,7 +361,6 @@ module.exports = {
     "framer-motion",
   ],
 
-
   // ═══════════════════════════════════════════════════════════════════════════
   // PROP COMBINATIONS
   // ═══════════════════════════════════════════════════════════════════════════
@@ -380,5 +384,4 @@ module.exports = {
     { component: "Card", props: ["tone", "padding", "radius"] },
     { component: "Heading", props: ["size", "as"] },
   ],
-
 };

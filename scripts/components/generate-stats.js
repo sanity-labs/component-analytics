@@ -1,12 +1,11 @@
 const fs = require("fs");
 const path = require("path");
 
-// List of codebases to analyze
-const CODEBASES = ["sanity", "canvas", "huey"];
+const { CODEBASES } = require("../lib/constants");
 
 function generateStats(codebase) {
-  const inputPath = `reports/${codebase}/all-components/all-components.json`;
-  const outputPath = `reports/${codebase}/all-components/stats.md`;
+  const inputPath = `reports/codebases/${codebase}/all-components/all-components.json`;
+  const outputPath = `reports/codebases/${codebase}/all-components/stats.md`;
 
   // Check if input file exists
   if (!fs.existsSync(inputPath)) {

@@ -358,7 +358,67 @@ function classifyValue(raw) {
   }
 
   // Object literal: { key: value }
-  if (/^\{.*\}$/.test(raw)) return "<object>";
+  if (/^\{.*\}$/.test(raw)) {
+    const inner = raw.slice(1, -1).trim();
+    if (inner === "") return "{}";
+
+    // Split on commas that are not inside quotes, brackets, or braces
+    const entries = [];
+    let depth = 0;
+    let inStr = null;
+    let start = 0;
+    for (let i = 0; i < inner.length; i++) {
+      const ch = inner[i];
+      if (inStr) {
+        if (ch === inStr) inStr = null;
+      } else if (ch === "'" || ch === '"') {
+        inStr = ch;
+      } else if (ch === "[" || ch === "(" || ch === "{") {
+        depth++;
+      } else if (ch === "]" || ch === ")" || ch === "}") {
+        depth--;
+      } else if (ch === "," && depth === 0) {
+        entries.push(inner.slice(start, i).trim());
+        start = i + 1;
+      }
+    }
+    entries.push(inner.slice(start).trim());
+
+    // Check if every entry is key: literalValue
+    const parsed = [];
+    let allLiteral = true;
+    for (const entry of entries) {
+      // Split on the first colon to get key and value
+      const colonIdx = entry.indexOf(":");
+      if (colonIdx === -1) {
+        allLiteral = false;
+        break;
+      }
+      const key = entry.slice(0, colonIdx).trim();
+      const val = entry.slice(colonIdx + 1).trim();
+
+      // Key must be a simple identifier
+      if (!/^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(key)) {
+        allLiteral = false;
+        break;
+      }
+
+      // Value must be a simple literal (number, string, boolean)
+      if (val === "true" || val === "false") {
+        parsed.push(key + ": " + val);
+      } else if (/^-?\d+(\.\d+)?$/.test(val)) {
+        parsed.push(key + ": " + val);
+      } else if (/^['"](.*)['"]$/.test(val)) {
+        parsed.push(key + ': "' + val.slice(1, -1) + '"');
+      } else {
+        allLiteral = false;
+        break;
+      }
+    }
+
+    if (allLiteral) return "{" + parsed.join(", ") + "}";
+    return "<object>";
+  }
 
   // Arrow function or function reference
   if (/=>/.test(raw) || /^function\b/.test(raw)) return "<function>";
@@ -396,6 +456,11 @@ function normalizeValue(classified) {
     return classified;
   }
 
+  // Keep literal object values when short enough to be useful
+  if (classified.startsWith("{") && classified.length <= 40) {
+    return classified;
+  }
+
   // Keep short string literals (common enum values like "ghost", "primary")
   if (
     !classified.startsWith("<") &&
@@ -408,6 +473,7 @@ function normalizeValue(classified) {
   // Collapse dynamic categories
   if (classified.startsWith("<variable:")) return "<variable>";
   if (classified.startsWith("[")) return "<array>";
+  if (classified.startsWith("{")) return "<object>";
   return classified;
 }
 
@@ -495,6 +561,7 @@ function escapeRegex(s) {
  * @typedef {object} PropValueBucket
  * @property {Object<string, number>} values         - normalized value → count.
  * @property {number}                 totalUsages     - total times this prop was used.
+ * @property {number}                 unsetInstances  - instances where this prop was not set.
  * @property {number}                 defaultUsages   - times the prop was set to its known default value.
  * @property {string|null}            defaultValue    - the known default value (null if unknown).
  */
@@ -705,6 +772,7 @@ function buildComponentJson(report) {
     const bucket = report.props[propName];
     const detail = {
       totalUsages: bucket.totalUsages,
+      unsetInstances: report.totalInstances - bucket.totalUsages,
       values: Object.fromEntries(sortByCount(bucket.values)),
     };
     if (bucket.defaultValue !== null) {

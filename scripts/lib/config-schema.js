@@ -24,6 +24,11 @@
  *   theme-only imports from being counted as component usage.
  * @property {string[]} components     - PascalCase component export names to
  *   track (e.g. `"Button"`, `"Card"`, `"Flex"`).
+ * @property {string[]} [wrapperSources] - Optional import-path substrings that
+ *   identify an internal wrapper layer around this library (e.g.
+ *   `["ui-components"]`).  When present, a separate "wrappers" scan is
+ *   generated so you can measure how much code goes through the wrapper
+ *   vs. importing the library directly.
  *
  * Note: Prop defaults are detected automatically from usage data by
  * `detect-prop-defaults.js` and applied at analysis time by

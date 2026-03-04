@@ -87,6 +87,7 @@ export function ComponentDetail({ componentName, onNavigate }) {
           _key: name,
           name,
           usages: info.totalUsages,
+          unsetInstances: info.unsetInstances ?? 0,
           pctOfInstances:
             pct(info.totalUsages, data.totalInstances).toFixed(1) + "%",
           uniqueValues,
@@ -241,6 +242,12 @@ export function ComponentDetail({ componentName, onNavigate }) {
               },
               { key: "usages", label: "Usages", numeric: true, flex: 2 },
               {
+                key: "unsetInstances",
+                label: "Unset",
+                numeric: true,
+                flex: 2,
+              },
+              {
                 key: "pctOfInstances",
                 label: "% of Instances",
                 numeric: true,
@@ -285,6 +292,8 @@ export function ComponentDetail({ componentName, onNavigate }) {
                 <Text size={1} muted>
                   {data.props[selectedProp].totalUsages} total usages across{" "}
                   {valueRows.length} distinct values
+                  {" · "}
+                  {data.props[selectedProp].unsetInstances ?? 0} instances unset
                 </Text>
               </Stack>
               <Button
