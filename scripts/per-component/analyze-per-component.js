@@ -903,6 +903,11 @@ function generateSummaryJSON(reports) {
       ),
     );
 
+    const totalPropUsages = Object.values(r.props).reduce(
+      (s, p) => s + p.totalUsages,
+      0,
+    );
+
     return {
       component: r.component,
       library: r.library,
@@ -911,6 +916,10 @@ function generateSummaryJSON(reports) {
       codebaseImports: r.codebaseImports,
       codebaseInstances: r.codebaseInstances,
       uniqueProps: Object.keys(r.props).length,
+      avgPropsPerInstance:
+        r.totalInstances > 0
+          ? parseFloat((totalPropUsages / r.totalInstances).toFixed(2))
+          : 0,
       totalDefaultUsages: r.totalDefaultUsages,
       topProps: propsSorted.slice(0, 10).map(([name, count]) => ({
         name,
@@ -923,12 +932,35 @@ function generateSummaryJSON(reports) {
 
   let totalImports = 0;
   let totalInstances = 0;
+  let totalPropUsages = 0;
   let totalDefaultUsages = 0;
   for (const r of sorted) {
     totalImports += r.totalImports;
     totalInstances += r.totalInstances;
     totalDefaultUsages += r.totalDefaultUsages;
+    totalPropUsages += Object.values(r.props).reduce(
+      (s, p) => s + p.totalUsages,
+      0,
+    );
   }
+
+  const avgPropsPerInstance =
+    totalInstances > 0
+      ? parseFloat((totalPropUsages / totalInstances).toFixed(2))
+      : 0;
+
+  // Components ranked by average props per instance (descending).
+  // Filtered to components with at least 5 instances to avoid noise
+  // from rarely-used components that skew the average.
+  const componentsByAvgPropsPerInstance = components
+    .filter((c) => c.totalInstances >= 5)
+    .sort((a, b) => b.avgPropsPerInstance - a.avgPropsPerInstance)
+    .map((c) => ({
+      component: c.component,
+      avgPropsPerInstance: c.avgPropsPerInstance,
+      totalInstances: c.totalInstances,
+      uniqueProps: c.uniqueProps,
+    }));
 
   return JSON.stringify(
     {
@@ -937,6 +969,8 @@ function generateSummaryJSON(reports) {
       totalImports,
       totalInstances,
       totalDefaultUsages,
+      avgPropsPerInstance,
+      componentsByAvgPropsPerInstance,
       components,
     },
     null,
@@ -974,9 +1008,20 @@ function generateSummaryText(reports, ctx) {
     totalDefaultUsages += r.totalDefaultUsages;
   }
 
+  let totalPropUsages = 0;
+  for (const r of sorted) {
+    totalPropUsages += Object.values(r.props).reduce(
+      (s, p) => s + p.totalUsages,
+      0,
+    );
+  }
+  const avgPropsPerInstance =
+    totalInstances > 0 ? (totalPropUsages / totalInstances).toFixed(2) : "0.00";
+
   lines.push(`- **Components analysed:** ${sorted.length}`);
   lines.push(`- **Total imports:** ${totalImports}`);
   lines.push(`- **Total JSX instances:** ${totalInstances}`);
+  lines.push(`- **Avg props per instance:** ${avgPropsPerInstance}`);
   lines.push(
     `- **Default value usages:** ${totalDefaultUsages} (props explicitly set to their default)`,
   );
@@ -1006,6 +1051,47 @@ function generateSummaryText(reports, ctx) {
   }
 
   lines.push("");
+
+  // Components ranked by average props per instance
+  const byAvgProps = sorted
+    .filter((r) => r.totalInstances >= 5)
+    .map((r) => {
+      const propUsages = Object.values(r.props).reduce(
+        (s, p) => s + p.totalUsages,
+        0,
+      );
+      return {
+        component: r.component,
+        avgProps:
+          r.totalInstances > 0
+            ? (propUsages / r.totalInstances).toFixed(2)
+            : "0.00",
+        totalInstances: r.totalInstances,
+        uniqueProps: Object.keys(r.props).length,
+      };
+    })
+    .sort((a, b) => parseFloat(b.avgProps) - parseFloat(a.avgProps));
+
+  if (byAvgProps.length > 0) {
+    lines.push("### Components by Props per Instance");
+    lines.push("");
+    lines.push(
+      "Components with ≥ 5 instances, ranked by average props per use.",
+    );
+    lines.push("");
+    lines.push(
+      "| Rank | Component | Avg Props/Use | Instances | Unique Props |",
+    );
+    lines.push("| ---: | --- | ---: | ---: | ---: |");
+
+    for (let i = 0; i < byAvgProps.length; i++) {
+      const c = byAvgProps[i];
+      lines.push(
+        `| ${i + 1} | ${c.component} | ${c.avgProps} | ${c.totalInstances} | ${c.uniqueProps} |`,
+      );
+    }
+    lines.push("");
+  }
 
   // Per-component detail (top 20 by instances)
   const topComponents = sorted.slice(0, 20);

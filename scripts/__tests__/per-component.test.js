@@ -1772,7 +1772,85 @@ describe("generateSummaryJSON", () => {
     expect(parsed.totalComponents).toBe(0);
     expect(parsed.totalImports).toBe(0);
     expect(parsed.totalInstances).toBe(0);
+    expect(parsed.avgPropsPerInstance).toBe(0);
+    expect(parsed.componentsByAvgPropsPerInstance).toEqual([]);
     expect(parsed.components).toEqual([]);
+  });
+
+  test("includes library-level avgPropsPerInstance", () => {
+    const reports = {
+      Button: createEmptyReport("Button"),
+      Card: createEmptyReport("Card"),
+    };
+    // Button: 10 instances, 3 prop usages each = 30 total prop usages
+    reports.Button.totalInstances = 10;
+    for (let i = 0; i < 10; i++) recordProp(reports.Button, "mode", "'ghost'");
+    for (let i = 0; i < 10; i++)
+      recordProp(reports.Button, "tone", "'primary'");
+    for (let i = 0; i < 10; i++)
+      recordProp(reports.Button, "onClick", "handleClick");
+
+    // Card: 20 instances, 1 prop usage each = 20 total prop usages
+    reports.Card.totalInstances = 20;
+    for (let i = 0; i < 20; i++) recordProp(reports.Card, "padding", "4");
+
+    // Library-level: 50 prop usages / 30 instances = 1.67
+    const parsed = JSON.parse(generateSummaryJSON(reports));
+    expect(parsed.avgPropsPerInstance).toBeCloseTo(50 / 30, 2);
+  });
+
+  test("includes avgPropsPerInstance per component", () => {
+    const reports = {
+      Button: createEmptyReport("Button"),
+    };
+    reports.Button.totalInstances = 10;
+    for (let i = 0; i < 10; i++) recordProp(reports.Button, "mode", "'ghost'");
+    for (let i = 0; i < 5; i++) recordProp(reports.Button, "tone", "'primary'");
+
+    // 15 prop usages / 10 instances = 1.5
+    const parsed = JSON.parse(generateSummaryJSON(reports));
+    expect(parsed.components[0].avgPropsPerInstance).toBe(1.5);
+  });
+
+  test("includes componentsByAvgPropsPerInstance sorted descending", () => {
+    const reports = {
+      Button: createEmptyReport("Button"),
+      Card: createEmptyReport("Card"),
+      Spinner: createEmptyReport("Spinner"),
+    };
+    // Button: 10 instances, 30 prop usages → avg 3.0
+    reports.Button.totalInstances = 10;
+    for (let i = 0; i < 10; i++) recordProp(reports.Button, "mode", "'ghost'");
+    for (let i = 0; i < 10; i++)
+      recordProp(reports.Button, "tone", "'primary'");
+    for (let i = 0; i < 10; i++)
+      recordProp(reports.Button, "onClick", "handleClick");
+
+    // Card: 20 instances, 20 prop usages → avg 1.0
+    reports.Card.totalInstances = 20;
+    for (let i = 0; i < 20; i++) recordProp(reports.Card, "padding", "4");
+
+    // Spinner: 2 instances (below threshold of 5, should be excluded)
+    reports.Spinner.totalInstances = 2;
+    for (let i = 0; i < 2; i++) recordProp(reports.Spinner, "size", "2");
+
+    const parsed = JSON.parse(generateSummaryJSON(reports));
+
+    // Only Button and Card qualify (≥ 5 instances)
+    expect(parsed.componentsByAvgPropsPerInstance).toHaveLength(2);
+
+    // Sorted descending: Button (3.0) before Card (1.0)
+    expect(parsed.componentsByAvgPropsPerInstance[0].component).toBe("Button");
+    expect(parsed.componentsByAvgPropsPerInstance[0].avgPropsPerInstance).toBe(
+      3,
+    );
+    expect(parsed.componentsByAvgPropsPerInstance[0].totalInstances).toBe(10);
+    expect(parsed.componentsByAvgPropsPerInstance[0].uniqueProps).toBe(3);
+
+    expect(parsed.componentsByAvgPropsPerInstance[1].component).toBe("Card");
+    expect(parsed.componentsByAvgPropsPerInstance[1].avgPropsPerInstance).toBe(
+      1,
+    );
   });
 });
 
@@ -1852,6 +1930,61 @@ describe("generateSummaryText", () => {
     expect(text).toContain("**Components analysed:** 0");
     expect(text).toContain("**Total imports:** 0");
     expect(text).toContain("**Total JSX instances:** 0");
+    expect(text).toContain("**Avg props per instance:** 0.00");
+  });
+
+  test("includes library-level avg props per instance", () => {
+    const reports = {
+      Button: createEmptyReport("Button"),
+    };
+    reports.Button.totalInstances = 10;
+    for (let i = 0; i < 10; i++) recordProp(reports.Button, "mode", "'ghost'");
+    for (let i = 0; i < 10; i++)
+      recordProp(reports.Button, "tone", "'primary'");
+
+    const text = generateSummaryText(reports);
+    // 20 prop usages / 10 instances = 2.00
+    expect(text).toContain("**Avg props per instance:** 2.00");
+  });
+
+  test("includes components by props per instance section", () => {
+    const reports = {
+      Button: createEmptyReport("Button"),
+      Card: createEmptyReport("Card"),
+    };
+    // Button: 10 instances, 30 prop usages → avg 3.0
+    reports.Button.totalInstances = 10;
+    for (let i = 0; i < 10; i++) recordProp(reports.Button, "mode", "'ghost'");
+    for (let i = 0; i < 10; i++)
+      recordProp(reports.Button, "tone", "'primary'");
+    for (let i = 0; i < 10; i++)
+      recordProp(reports.Button, "onClick", "handleClick");
+
+    // Card: 20 instances, 20 prop usages → avg 1.0
+    reports.Card.totalInstances = 20;
+    for (let i = 0; i < 20; i++) recordProp(reports.Card, "padding", "4");
+
+    const text = generateSummaryText(reports);
+
+    expect(text).toContain("Components by Props per Instance");
+    // Button (higher avg) should appear before Card
+    const buttonIdx = text.indexOf("| 1 | Button");
+    const cardIdx = text.indexOf("| 2 | Card");
+    expect(buttonIdx).toBeGreaterThan(-1);
+    expect(cardIdx).toBeGreaterThan(buttonIdx);
+  });
+
+  test("excludes components with fewer than 5 instances from avg props ranking", () => {
+    const reports = {
+      Spinner: createEmptyReport("Spinner"),
+    };
+    reports.Spinner.totalInstances = 2;
+    recordProp(reports.Spinner, "size", "2");
+
+    const text = generateSummaryText(reports);
+
+    // With only 1 component below threshold, the section should not appear
+    expect(text).not.toContain("Components by Props per Instance");
   });
 });
 
