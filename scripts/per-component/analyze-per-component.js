@@ -138,16 +138,19 @@ function parseNamedImports(namedImportsStr) {
  * @param {string} content - File content.
  * @returns {Object<string, string>} local JSX name → original tracked UI library export name.
  */
-function buildTrackedUIImportMap(content) {
+function buildTrackedUIImportMap(content, ctx) {
+  const _isTrackedUISource = ctx ? ctx.isTrackedUISource : isTrackedUISource;
+  const _trackedComponents = ctx ? ctx.trackedComponents : TRACKED_COMPONENTS;
+
   const imports = extractImports(content);
   /** @type {Object<string, string>} */
   const map = {};
 
   for (const imp of imports) {
-    if (!isTrackedUISource(imp.source)) continue;
+    if (!_isTrackedUISource(imp.source)) continue;
 
     for (const { original, local } of parseNamedImports(imp.namedImports)) {
-      if (TRACKED_COMPONENTS.includes(original)) {
+      if (_trackedComponents.includes(original)) {
         map[local] = original;
       }
     }
@@ -503,8 +506,8 @@ function normalizeValue(classified) {
  * @param {string} content - File content.
  * @returns {FileResult}
  */
-function analyzeFileContent(content) {
-  const importMap = buildTrackedUIImportMap(content);
+function analyzeFileContent(content, ctx) {
+  const importMap = buildTrackedUIImportMap(content, ctx);
   const localNames = Object.keys(importMap);
 
   if (localNames.length === 0) {
@@ -592,10 +595,13 @@ function escapeRegex(s) {
  * @param {string} component - tracked UI library export name.
  * @returns {ComponentReport}
  */
-function createEmptyReport(component) {
+function createEmptyReport(component, ctx) {
+  const _identifyComponentLibrary = ctx
+    ? ctx.identifyComponentLibrary
+    : identifyComponentLibrary;
   return {
     component,
-    library: identifyComponentLibrary(component) || null,
+    library: _identifyComponentLibrary(component) || null,
     totalImports: 0,
     totalInstances: 0,
     props: {},
@@ -817,8 +823,8 @@ function buildComponentJson(report) {
  * @param {Object<string, ComponentReport>} reports
  * @returns {string}
  */
-function generateSummaryCSV(reports) {
-  const codebaseNames = [...CODEBASES];
+function generateSummaryCSV(reports, ctx) {
+  const codebaseNames = [...(ctx ? ctx.codebases : CODEBASES)];
   const header = [
     "Component",
     "Total Imports",
@@ -948,14 +954,15 @@ function generateSummaryJSON(reports) {
  * @param {Object<string, ComponentReport>} reports
  * @returns {string}
  */
-function generateSummaryText(reports) {
+function generateSummaryText(reports, ctx) {
+  const _uiLibraryNames = ctx ? ctx.uiLibraryNames : UI_LIBRARY_NAMES;
   const sorted = Object.values(reports).sort(
     (a, b) => b.totalInstances - a.totalInstances,
   );
 
   const lines = [];
 
-  lines.push(`# Per-Component ${UI_LIBRARY_NAMES} Analysis — Summary`);
+  lines.push(`# Per-Component ${_uiLibraryNames} Analysis — Summary`);
   lines.push("");
 
   let totalImports = 0;

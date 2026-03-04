@@ -9,16 +9,24 @@
  * this keeps a single point of derivation and ensures every script
  * sees the same resolved values.
  *
- * The module is UI-library-agnostic — the tracked library, its
- * components, and import patterns are all driven by the config file.
+ * Internally, this module loads the config file from disk and passes
+ * it to {@link createContext} from `context.js`.  The context factory
+ * does all the derivation work — this module simply re-exports the
+ * results under the legacy constant names for backward compatibility.
  *
- * If the config file cannot be found, the module falls back to
- * sensible defaults so that tests (which don't have a config file
- * on disk) continue to work.
+ * **Important:** Config loading is deferred until first access.  This
+ * means `require("./constants")` succeeds even when no config file
+ * exists on disk — the error only surfaces when a script actually
+ * reads one of the exported values without passing an explicit context.
+ * This allows library consumers to `require()` analysis modules (which
+ * import this file at the top level) and use them with a programmatic
+ * context, without needing a config file.
  */
 
 const path = require("path");
 const fs = require("fs");
+
+const { createContext, HTML_TAG_CATEGORIES, KNOWN_TAGS } = require("./context");
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // CONFIG LOADING
@@ -99,525 +107,176 @@ function loadConfig() {
   );
 }
 
-/** @type {import("./config-schema").StudioAnalysisConfig} */
-const CONFIG = loadConfig();
-
 // ═══════════════════════════════════════════════════════════════════════════════
-// DERIVED: CODEBASES
+// LAZY CONTEXT — deferred until first access
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
- * Codebase directory names.
- *
- * Every analysis script iterates this list.  Derived from
- * `config.codebases[].name`.
- *
- * @type {string[]}
+ * @type {import("./context").AnalysisContext | null}
+ * Populated on first access via {@link getContext}.
  */
-const CODEBASES = CONFIG.codebases.map((cb) => cb.name);
+let _ctx = null;
 
 /**
- * Map of codebase name → absolute directory path.
- *
- * Used by `lib/files.js` to resolve codebase directories.  Paths in
- * the config are relative to the project root (where
- * `component-analytics.config.js` lives).
- *
- * @type {Object<string, string>}
+ * @type {import("./config-schema").StudioAnalysisConfig | null}
+ * Populated on first access via {@link getContext}.
  */
-const CODEBASE_PATHS = {};
-const projectRoot = findConfigPath()
-  ? path.dirname(findConfigPath())
-  : path.resolve(__dirname, "../..");
-
-for (const cb of CONFIG.codebases) {
-  CODEBASE_PATHS[cb.name] = path.resolve(projectRoot, cb.path);
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// DERIVED: UI LIBRARY
-// ═══════════════════════════════════════════════════════════════════════════════
+let _config = null;
 
 /**
- * All configured UI library entries.
+ * Lazily load the config file and build the context.
  *
- * Scripts that need to iterate over every tracked library (e.g. the
- * per-component analyser) should use this array.
+ * The first call triggers `loadConfig()` + `createContext()`.
+ * Subsequent calls return the cached context.  This deferral is what
+ * allows `require("./constants")` to succeed even when no config file
+ * exists — the error is only thrown when a CLI script (or a library
+ * consumer who forgot to pass `ctx`) actually reads a value.
  *
- * @type {import("./config-schema").UILibrary[]}
+ * @returns {import("./context").AnalysisContext}
  */
-const ALL_UI_LIBRARIES = (CONFIG.uiLibraries || []).map((lib) => ({
-  name: lib.name || "UI Library",
-  importSources: lib.importSources || [],
-  excludeSources: lib.excludeSources || [],
-  components: lib.components || [],
-  propDefaults: lib.propDefaults || {},
-  wrapperSources: lib.wrapperSources || [],
-}));
+function getContext() {
+  if (_ctx) return _ctx;
 
-/**
- * The primary UI library configuration (first entry).
- *
- * Most report labels and summary statistics use this as the "main"
- * tracked library.  Individual scripts may iterate over
- * {@link ALL_UI_LIBRARIES} to cover all entries.
- *
- * @type {import("./config-schema").UILibrary}
- */
-const PRIMARY_UI_LIBRARY = ALL_UI_LIBRARIES[0] || {
-  name: "UI Library",
-  importSources: [],
-  excludeSources: [],
-  components: [],
-  propDefaults: {},
-};
+  _config = loadConfig();
 
-/**
- * Human-readable name of the primary tracked UI library.
- *
- * @type {string}
- */
-const UI_LIBRARY_NAME = PRIMARY_UI_LIBRARY.name;
+  const projectRoot = findConfigPath()
+    ? path.dirname(findConfigPath())
+    : path.resolve(__dirname, "../..");
 
-/**
- * Human-readable label covering ALL tracked UI libraries.
- *
- * When a single library is configured this equals {@link UI_LIBRARY_NAME}.
- * When multiple libraries are configured the names are joined with " & "
- * (e.g. `"Sanity UI & Sanity Icons"`).
- *
- * Use this in report headers / summaries that aggregate data across
- * every tracked library.  Use {@link UI_LIBRARY_NAME} when you only
- * need to refer to the primary library.
- *
- * @type {string}
- */
-const UI_LIBRARY_NAMES =
-  ALL_UI_LIBRARIES.length <= 1
-    ? UI_LIBRARY_NAME
-    : ALL_UI_LIBRARIES.map((lib) => lib.name).join(" & ");
-
-/**
- * Canonical list of component names merged from ALL configured UI
- * libraries.
- *
- * Used by the customisation analyser to detect `style={}` props and
- * `styled()` wrappers, and by the per-component analyser to classify
- * imports.
- *
- * @type {string[]}
- */
-const TRACKED_COMPONENTS = [
-  ...new Set(ALL_UI_LIBRARIES.flatMap((lib) => lib.components)),
-];
-
-/**
- * Known default prop values for the tracked UI library's components.
- *
- * This is now an empty object by default.  Prop defaults are detected
- * automatically from usage data by the `detect-prop-defaults.js` script
- * and applied at analysis time by `analyze-per-component.js`.
- *
- * If the config file still contains a `propDefaults` key (for backward
- * compatibility), those values will be used.  Otherwise the object is
- * empty and the per-component analyser relies entirely on auto-detection.
- *
- * @type {Object<string, Object<string, string>>}
- */
-const PROP_DEFAULTS = PRIMARY_UI_LIBRARY.propDefaults || {};
-
-/**
- * Import-source substrings that identify any tracked UI library,
- * merged from ALL configured libraries.
- *
- * An import like `import { Button } from '<tracked-ui-library>'` matches if
- * the source string contains any of these substrings.
- *
- * @type {string[]}
- */
-const UI_IMPORT_SOURCES = [
-  ...new Set(ALL_UI_LIBRARIES.flatMap((lib) => lib.importSources)),
-];
-
-/**
- * Import-source substrings to exclude from UI-library matching,
- * merged from ALL configured libraries.
- *
- * Even if a source matches `UI_IMPORT_SOURCES`, it is excluded if it
- * also matches any of these substrings.  For example,
- * Excluded sources (configured in config) are excluded so that theme-only imports aren't
- * counted as component usage.
- *
- * @type {string[]}
- */
-const UI_EXCLUDE_SOURCES = [
-  ...new Set(ALL_UI_LIBRARIES.flatMap((lib) => lib.excludeSources)),
-];
-
-/**
- * Test whether an import source path belongs to ANY tracked UI library.
- *
- * Returns `true` if the source matches any `UI_IMPORT_SOURCES` entry
- * AND does not match any `UI_EXCLUDE_SOURCES` entry.
- *
- * This function replaces the many duplicated `isTrackedUISource()`
- * functions that were previously hardcoded in individual scripts.
- *
- * @param {string} source - The import path (e.g. `"@my-org/ui"`).
- * @returns {boolean}
- */
-function isTrackedUISource(source) {
-  const matches = UI_IMPORT_SOURCES.some((s) => source.includes(s));
-  if (!matches) return false;
-  const excluded = UI_EXCLUDE_SOURCES.some((s) => source.includes(s));
-  return !excluded;
+  _ctx = createContext(_config, { projectRoot });
+  return _ctx;
 }
 
 /**
- * Map of library name → `Set` of component names belonging to that library.
+ * Return the raw config object (lazily loaded).
  *
- * Used by {@link identifyComponentLibrary} to resolve a PascalCase
- * component name back to the library it was declared in.
- *
- * @type {Map<string, Set<string>>}
+ * @returns {import("./config-schema").StudioAnalysisConfig}
  */
-const LIBRARY_COMPONENT_MAP = new Map();
-for (const lib of ALL_UI_LIBRARIES) {
-  LIBRARY_COMPONENT_MAP.set(lib.name, new Set(lib.components));
-}
-
-/**
- * Identify which specific tracked UI library an import source belongs to.
- *
- * Unlike {@link isTrackedUISource} (which returns a boolean), this
- * returns the **name** of the matching library so callers can
- * attribute usage to individual libraries rather than a single
- * "tracked UI" bucket.
- *
- * Libraries are checked in config order.  Exclusion rules are
- * respected — if a source matches an `excludeSources` entry it is
- * skipped even if it also matches `importSources`.
- *
- * @param {string} source - The import path (e.g. `"@sanity/ui"`).
- * @returns {string | null} The library name, or `null` if the source
- *   does not belong to any tracked library.
- */
-function identifyLibrary(source) {
-  for (const lib of ALL_UI_LIBRARIES) {
-    const excluded = lib.excludeSources.some((s) => source.includes(s));
-    if (excluded) continue;
-    const matches = lib.importSources.some((s) => source.includes(s));
-    if (matches) return lib.name;
-  }
-  return null;
-}
-
-/**
- * Identify which tracked UI library a component name belongs to.
- *
- * Looks up the name in {@link LIBRARY_COMPONENT_MAP}.  If the
- * component appears in more than one library (unlikely but possible),
- * the first match in config order wins.
- *
- * @param {string} componentName - PascalCase component name (e.g. `"Button"`).
- * @returns {string | null} The library name, or `null`.
- */
-function identifyComponentLibrary(componentName) {
-  for (const [libName, comps] of LIBRARY_COMPONENT_MAP) {
-    if (comps.has(componentName)) return libName;
-  }
-  return null;
+function getConfig() {
+  if (!_config) getContext();
+  return _config;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// DERIVED: OTHER UI PATTERNS (for the sources report)
+// LAZY PROPERTY EXPORTS
 // ═══════════════════════════════════════════════════════════════════════════════
+//
+// Every property below is defined as a getter on the exports object so
+// that the config file is only loaded when a script actually reads a
+// value.  This is invisible to consumers — they use the same
+// destructuring syntax they always have:
+//
+//   const { CODEBASES, TRACKED_COMPONENTS } = require("./constants");
+//
+// The getters fire on destructure, loading the config at that point.
 
-/**
- * Import-source substrings that identify third-party UI libraries
- * (neither the tracked library nor internal code).
- *
- * Used by the sources report to classify imports into the "other UI"
- * category.
- *
- * @type {string[]}
- */
-const OTHER_UI_PATTERNS = CONFIG.otherUIPatterns || [];
+const exp = (module.exports = {});
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// DERIVED: PROP COMBINATIONS
-// ═══════════════════════════════════════════════════════════════════════════════
+// Raw config access (for advanced use cases)
+Object.defineProperty(exp, "CONFIG", { get: getConfig, enumerable: true });
+exp.loadConfig = loadConfig;
+exp.findConfigPath = findConfigPath;
 
-/**
- * Configured prop-combination reports.
- *
- * Each entry specifies a component and a set of props whose value
- * combinations should be cross-tabulated across all codebases.
- *
- * Derived from `config.propCombos`.  Defaults to an empty array when
- * the config section is absent.
- *
- * @type {import("./config-schema").PropComboEntry[]}
- */
-const PROP_COMBOS = (CONFIG.propCombos || []).map((entry) => ({
-  component: entry.component,
-  props: entry.props || [],
-}));
+// ── Codebases ────────────────────────────────────────────────────────────────
 
-/**
- * Test whether an import source path belongs to a third-party UI
- * library (not the tracked one, not internal).
- *
- * @param {string} source - The import path.
- * @returns {boolean}
- */
-function isOtherUISource(source) {
-  return OTHER_UI_PATTERNS.some((p) => source.includes(p));
-}
+Object.defineProperty(exp, "CODEBASES", {
+  get: () => getContext().codebases,
+  enumerable: true,
+});
+Object.defineProperty(exp, "CODEBASE_PATHS", {
+  get: () => getContext().codebasePaths,
+  enumerable: true,
+});
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// DERIVED: FILE SCANNING
-// ═══════════════════════════════════════════════════════════════════════════════
+// ── UI libraries ─────────────────────────────────────────────────────────────
 
-/**
- * Glob pattern for component files.
- *
- * @type {string}
- */
-const FILE_PATTERN = (CONFIG.files && CONFIG.files.pattern) || "**/*.{tsx,jsx}";
+Object.defineProperty(exp, "ALL_UI_LIBRARIES", {
+  get: () => getContext().allUILibraries,
+  enumerable: true,
+});
+Object.defineProperty(exp, "PRIMARY_UI_LIBRARY", {
+  get: () => getContext().primaryUILibrary,
+  enumerable: true,
+});
+Object.defineProperty(exp, "UI_LIBRARY_NAME", {
+  get: () => getContext().uiLibraryName,
+  enumerable: true,
+});
+Object.defineProperty(exp, "UI_LIBRARY_NAMES", {
+  get: () => getContext().uiLibraryNames,
+  enumerable: true,
+});
+Object.defineProperty(exp, "TRACKED_COMPONENTS", {
+  get: () => getContext().trackedComponents,
+  enumerable: true,
+});
+Object.defineProperty(exp, "PROP_DEFAULTS", {
+  get: () => getContext().propDefaults,
+  enumerable: true,
+});
+Object.defineProperty(exp, "UI_IMPORT_SOURCES", {
+  get: () => getContext().uiImportSources,
+  enumerable: true,
+});
+Object.defineProperty(exp, "UI_EXCLUDE_SOURCES", {
+  get: () => getContext().uiExcludeSources,
+  enumerable: true,
+});
+Object.defineProperty(exp, "LIBRARY_COMPONENT_MAP", {
+  get: () => getContext().libraryComponentMap,
+  enumerable: true,
+});
 
-/**
- * Glob ignore patterns shared by every analyser when scanning codebases.
- *
- * @type {string[]}
- */
-const DEFAULT_GLOB_IGNORE = (CONFIG.files && CONFIG.files.ignore) || [
-  "**/node_modules/**",
-  "**/dist/**",
-  "**/build/**",
-  "**/*.test.*",
-  "**/*.spec.*",
-  "**/__tests__/**",
-  "**/*.stories.*",
-];
+// ── UI library functions ─────────────────────────────────────────────────────
+//
+// These are defined as getters that return functions.  When destructured
+// at the top of a script (`const { isTrackedUISource } = require(…)`)
+// the getter fires immediately and returns the context's closure.  This
+// is equivalent to the old direct-export approach but deferred.
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// HTML TAG CATEGORIES (independent of UI library config)
-// ═══════════════════════════════════════════════════════════════════════════════
+Object.defineProperty(exp, "isTrackedUISource", {
+  get: () => getContext().isTrackedUISource,
+  enumerable: true,
+});
+Object.defineProperty(exp, "identifyLibrary", {
+  get: () => getContext().identifyLibrary,
+  enumerable: true,
+});
+Object.defineProperty(exp, "identifyComponentLibrary", {
+  get: () => getContext().identifyComponentLibrary,
+  enumerable: true,
+});
 
-/**
- * Standard HTML tags grouped by semantic category.
- *
- * The HTML-tag analyser uses this to classify each tag it encounters.
- * Categories are intentionally broad so the report stays readable.
- *
- * @type {Object<string, string[]>}
- */
-const HTML_TAG_CATEGORIES = {
-  layout: [
-    "article",
-    "aside",
-    "details",
-    "dialog",
-    "div",
-    "figcaption",
-    "figure",
-    "footer",
-    "header",
-    "main",
-    "nav",
-    "section",
-    "slot",
-    "span",
-    "summary",
-    "template",
-  ],
+// ── Other UI classification ──────────────────────────────────────────────────
 
-  text: [
-    "abbr",
-    "b",
-    "bdi",
-    "bdo",
-    "blockquote",
-    "br",
-    "cite",
-    "code",
-    "data",
-    "del",
-    "dfn",
-    "em",
-    "h1",
-    "h2",
-    "h3",
-    "h4",
-    "h5",
-    "h6",
-    "hr",
-    "i",
-    "ins",
-    "kbd",
-    "mark",
-    "p",
-    "pre",
-    "q",
-    "rp",
-    "rt",
-    "ruby",
-    "s",
-    "samp",
-    "small",
-    "strong",
-    "sub",
-    "sup",
-    "time",
-    "u",
-    "var",
-    "wbr",
-  ],
+Object.defineProperty(exp, "OTHER_UI_PATTERNS", {
+  get: () => getContext().otherUIPatterns,
+  enumerable: true,
+});
+Object.defineProperty(exp, "isOtherUISource", {
+  get: () => getContext().isOtherUISource,
+  enumerable: true,
+});
 
-  form: [
-    "button",
-    "datalist",
-    "fieldset",
-    "form",
-    "input",
-    "label",
-    "legend",
-    "meter",
-    "optgroup",
-    "option",
-    "output",
-    "progress",
-    "select",
-    "textarea",
-  ],
+// ── Prop combinations ────────────────────────────────────────────────────────
 
-  list: ["dd", "dl", "dt", "li", "menu", "ol", "ul"],
+Object.defineProperty(exp, "PROP_COMBOS", {
+  get: () => getContext().propCombos,
+  enumerable: true,
+});
 
-  table: [
-    "caption",
-    "col",
-    "colgroup",
-    "table",
-    "tbody",
-    "td",
-    "tfoot",
-    "th",
-    "thead",
-    "tr",
-  ],
+// ── File scanning ────────────────────────────────────────────────────────────
 
-  media: [
-    "animate",
-    "animateTransform",
-    "audio",
-    "canvas",
-    "circle",
-    "clipPath",
-    "defs",
-    "desc",
-    "ellipse",
-    "feBlend",
-    "feComposite",
-    "feFlood",
-    "feGaussianBlur",
-    "feMerge",
-    "feMergeNode",
-    "feOffset",
-    "filter",
-    "foreignObject",
-    "g",
-    "image",
-    "img",
-    "line",
-    "linearGradient",
-    "marker",
-    "mask",
-    "metadata",
-    "path",
-    "pattern",
-    "picture",
-    "polygon",
-    "polyline",
-    "radialGradient",
-    "rect",
-    "set",
-    "source",
-    "stop",
-    "svg",
-    "symbol",
-    "text",
-    "title",
-    "track",
-    "tspan",
-    "use",
-    "video",
-  ],
+Object.defineProperty(exp, "FILE_PATTERN", {
+  get: () => getContext().filePattern,
+  enumerable: true,
+});
+Object.defineProperty(exp, "DEFAULT_GLOB_IGNORE", {
+  get: () => getContext().defaultGlobIgnore,
+  enumerable: true,
+});
 
-  link: ["a", "area", "link", "map"],
+// ── HTML tags (static — not config-dependent, no lazy loading needed) ────────
 
-  embed: ["embed", "iframe", "object", "param", "portal"],
-
-  scripting: ["noscript", "script"],
-
-  semantic: ["address", "hgroup", "search"],
-
-  document: ["html", "head", "body", "base", "meta", "style"],
-};
-
-/**
- * Flat set of every known HTML and SVG tag name, built from
- * {@link HTML_TAG_CATEGORIES}.
- *
- * Used as an allowlist — any tag the regex extracts that isn't in this
- * set is discarded as a false positive (e.g. TypeScript type keywords
- * like `string`, `boolean`, `typeof`, or library-specific JSX elements
- * like `motion`).
- *
- * @type {Set<string>}
- */
-const KNOWN_TAGS = new Set(Object.values(HTML_TAG_CATEGORIES).flat());
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// EXPORTS
-// ═══════════════════════════════════════════════════════════════════════════════
-
-module.exports = {
-  // Raw config access (for advanced use cases)
-  CONFIG,
-  loadConfig,
-  findConfigPath,
-
-  // Codebases
-  CODEBASES,
-  CODEBASE_PATHS,
-
-  // UI libraries
-  ALL_UI_LIBRARIES,
-  PRIMARY_UI_LIBRARY,
-  UI_LIBRARY_NAME,
-  UI_LIBRARY_NAMES,
-  TRACKED_COMPONENTS,
-  PROP_DEFAULTS,
-  UI_IMPORT_SOURCES,
-  UI_EXCLUDE_SOURCES,
-  isTrackedUISource,
-  LIBRARY_COMPONENT_MAP,
-  identifyLibrary,
-  identifyComponentLibrary,
-
-  // Other UI classification
-  OTHER_UI_PATTERNS,
-  isOtherUISource,
-
-  // Prop combinations
-  PROP_COMBOS,
-
-  // File scanning
-  FILE_PATTERN,
-  DEFAULT_GLOB_IGNORE,
-
-  // HTML tags (independent of UI library)
-  HTML_TAG_CATEGORIES,
-  KNOWN_TAGS,
-};
+exp.HTML_TAG_CATEGORIES = HTML_TAG_CATEGORIES;
+exp.KNOWN_TAGS = KNOWN_TAGS;

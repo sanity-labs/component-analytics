@@ -2,9 +2,12 @@
 
 Measures React component usage for a UI component library. Uses [React Scanner](https://github.com/moroshko/react-scanner) and custom AST-based analyzers to produce actionable reports on component usage, HTML tag prevalence, customization patterns, prop surface area, and line ownership across configurable codebases.
 
-All settings — which codebases to scan, which UI libraries to measure, and which components to track — are controlled by a single configuration file: **`component-analytics.config.js`**. This file is not committed to the repository — copy the included example to get started.
+The project has two layers:
 
-## Quick Start
+1. **Data collection library** (`index.js`) — Pure functions that parse, classify, and aggregate component usage data. No filesystem writes, no side effects. Can be imported into any Node.js application.
+2. **CLI** (`scripts/run.js`) — An implementation on top of the library that reads a config file from disk, runs every analysis step, and writes reports. This is what `npm run analyze` invokes.
+
+## Quick Start (CLI)
 
 ```bash
 npm install
@@ -34,9 +37,113 @@ The runner reads codebases and UI libraries from `component-analytics.config.js`
 
 > **Note:** A full run (`npm run analyze`) clears the entire `reports/` directory before generating new output. This prevents stale reports from lingering when codebases or scan types are renamed or removed. Running a single step (`--step`) does **not** clear reports, so other steps' output is preserved.
 
+## Programmatic Usage (Library)
+
+The data collection layer can be imported directly into any Node.js application — no config file on disk is required.
+
+```js
+const { createContext, perComponent } = require("ui-component-analysis");
+
+// 1. Build a context from a plain object (no config file needed)
+const ctx = createContext({
+  codebases: [{ name: "my-app", path: "./src" }],
+  uiLibraries: [{
+    name: "My UI",
+    importSources: ["@my-org/ui"],
+    excludeSources: [],
+    components: ["Button", "Card", "Text"],
+  }],
+  files: { pattern: "**/*.tsx", ignore: ["**/node_modules/**"] },
+});
+
+// 2. Analyze a single file (data collection only — no disk I/O)
+const fs = require("fs");
+const source = fs.readFileSync("src/MyPage.tsx", "utf8");
+const result = perComponent.analyzeFileContent(source, ctx);
+
+for (const inst of result.instances) {
+  const props = inst.props.map(p => p.name).join(", ");
+  console.log(`<${inst.component}> line ${inst.line} — props: ${props}`);
+}
+
+// 3. Aggregate across files
+const reports = {};
+for (const comp of ctx.trackedComponents) {
+  reports[comp] = perComponent.createEmptyReport(comp, ctx);
+}
+perComponent.mergeFileResult(reports, result, "my-app", "src/MyPage.tsx");
+perComponent.applyAutoDetectedDefaults(reports);
+
+// 4. Build the final per-component data (same structure as the CLI JSON)
+const buttonData = perComponent.buildComponentJson(reports.Button);
+console.log(buttonData);
+// => { component, library, totalInstances, props, references, … }
+
+// 5. Use pure utilities (no context needed)
+const props = perComponent.parseProps('mode="ghost" tone="primary"');
+const classified = perComponent.classifyValue("{color: 'red'}");
+```
+
+A full working example is available at [`examples/programmatic-usage.js`](examples/programmatic-usage.js).
+
+### What's exported
+
+| Export | Description |
+|--------|------------|
+| `createContext(config, options?)` | Build an analysis context from a plain config object. Each context is frozen and self-contained — multiple contexts don't share state. |
+| `perComponent` | Per-component analysis: file parsing, prop classification, aggregation, and JSON building. |
+| `sources` | Import source classification (tracked UI vs internal vs HTML vs other). |
+| `htmlTags` | Native HTML/SVG tag extraction and counting. |
+| `customizations` | Inline `style={}` and `styled()` detection on tracked components. |
+| `propCombos` | Prop value combination cross-tabulation. |
+| `utils` | Pure utilities: `sortByCount`, `pct`, `incr`, `mergeCounters`, `compact`, `topN`, `padNum`. |
+| `HTML_TAG_CATEGORIES` | Static map of tag categories (layout, text, form, media, …). |
+| `KNOWN_TAGS` | Flat `Set` of every known HTML/SVG tag name. |
+
+### Context-aware vs pure functions
+
+Functions that need to know which components and libraries to track accept an optional trailing `ctx` parameter:
+
+```js
+// Context-aware — pass ctx to control what's tracked
+perComponent.analyzeFileContent(source, ctx);
+perComponent.buildTrackedUIImportMap(source, ctx);
+perComponent.createEmptyReport("Button", ctx);
+perComponent.generateSummaryCSV(reports, ctx);
+perComponent.generateSummaryText(reports, ctx);
+
+// Pure utilities — no context needed
+perComponent.parseProps('mode="ghost"');
+perComponent.classifyValue("[1, 2, 3]");
+perComponent.normalizeValue("ghost");
+perComponent.buildComponentJson(report);
+perComponent.recordProp(report, "mode", "'ghost'");
+perComponent.mergeFileResult(reports, fileResult, "my-app", "file.tsx");
+```
+
+When `ctx` is omitted, functions fall back to the CLI's on-disk config. This means the CLI code is unchanged — it never passes `ctx`.
+
+### Context isolation
+
+Each context is fully independent. You can create multiple contexts for different projects and they won't interfere:
+
+```js
+const ctxA = createContext({
+  uiLibraries: [{ name: "Lib A", importSources: ["lib-a"], components: ["WidgetA"] }],
+});
+const ctxB = createContext({
+  uiLibraries: [{ name: "Lib B", importSources: ["lib-b"], components: ["WidgetB"] }],
+});
+
+ctxA.isTrackedUISource("lib-a"); // true
+ctxA.isTrackedUISource("lib-b"); // false
+ctxB.isTrackedUISource("lib-b"); // true
+ctxB.isTrackedUISource("lib-a"); // false
+```
+
 ## Configuration
 
-All project settings live in a single file at the project root:
+All CLI settings live in a single file at the project root:
 
 ```
 component-analytics.config.js
@@ -48,7 +155,9 @@ This file is **not checked into the repository** — it's `.gitignore`d so each 
 cp component-analytics.config.example.js component-analytics.config.js
 ```
 
-Edit the copy to control **what** gets analysed. Every analysis script reads from it automatically. If the config file is missing you'll see an error with instructions when you run any command — including tests. There is no silent fallback.
+Edit the copy to control **what** gets analysed. Every CLI script reads from it automatically. If the config file is missing you'll see an error with instructions when you run any CLI command. There is no silent fallback.
+
+Library consumers pass the same config shape directly to `createContext()` — no file on disk is needed.
 
 ### Codebases
 
@@ -266,47 +375,86 @@ Prop values are classified and normalized for aggregation:
 - **Objects** with all-literal values are preserved when short (≤ 40 chars): `{color: "red", size: 4}`. Longer or dynamic objects collapse to `<object>`.
 - **Dynamic values** are collapsed into category labels: `<variable>`, `<function>`, `<handler>`, `<ternary>`, `<template>`, `<expression>`.
 
+## Architecture
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                     DATA COLLECTION LAYER                        │
+│                                                                  │
+│  createContext(config)  →  AnalysisContext                        │
+│                            ├─ trackedComponents                  │
+│                            ├─ isTrackedUISource(source)          │
+│                            ├─ identifyLibrary(source)            │
+│                            └─ …                                  │
+│                                                                  │
+│  perComponent.analyzeFileContent(source, ctx)  →  FileResult     │
+│  perComponent.mergeFileResult(reports, result, codebase, path)   │
+│  perComponent.buildComponentJson(report)  →  { props, … }       │
+│                                                                  │
+│  Pure utilities (no context):                                    │
+│  parseProps, classifyValue, normalizeValue, recordProp, …        │
+├──────────────────────────────────────────────────────────────────┤
+│                     REPORT GENERATION LAYER (CLI)                │
+│                                                                  │
+│  scripts/run.js  ─────────────  npm run analyze                  │
+│    ├─ loads component-analytics.config.js from disk              │
+│    ├─ calls data collection functions                            │
+│    ├─ writes reports/ to filesystem                              │
+│    └─ prints console output                                      │
+│                                                                  │
+│  Each analyzer's main() function:                                │
+│    analyzeCodebase() → iterate files → merge → write reports     │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+The data collection layer (`index.js`, `scripts/lib/context.js`, and the analysis modules' exported functions) can be `require()`-d without a config file on disk. Config loading is deferred — it only happens when a CLI script reads a value without passing an explicit context.
+
 ## Project Structure
 
 ```
 ui-component-analysis/
-├── component-analytics.config.js           # ← Single configuration file
-├── codebases/                          # Source codebases (git clones)
+├── index.js                                # ← Library entry point (data collection API)
+├── component-analytics.config.js           # ← CLI configuration file
+├── examples/                               # Programmatic usage examples
+│   └── programmatic-usage.js               #   Working example: context + analyze + aggregate
+├── codebases/                              # Source codebases (git clones)
 │   └── <your-codebases>/
-├── config/                             # React Scanner config (reads from component-analytics.config.js)
-│   └── react-scanner.config.js         #   Builds scan types dynamically from config
-├── scripts/                            # Analysis & reporting scripts
-│   ├── run.js                          # ← Unified runner (npm run analyze)
-│   ├── lib/                            # Shared library
-│   │   ├── constants.js                #   Derived from component-analytics.config.js
-│   │   ├── config-schema.js            #   JSDoc typedefs for configuration
-│   │   ├── utils.js                    #   sortByCount, pct, incr, mergeCounters, compact, …
-│   │   └── files.js                    #   findFiles, readSafe, writeReports, clearReports, …
-│   ├── sources/                        # Import source classification
+├── config/                                 # React Scanner config (reads from component-analytics.config.js)
+│   └── react-scanner.config.js             #   Builds scan types dynamically from config
+├── scripts/                                # CLI scripts (report generation layer)
+│   ├── run.js                              # ← Unified CLI runner (npm run analyze)
+│   ├── lib/                                # Shared library
+│   │   ├── context.js                      #   createContext() — config-to-context factory
+│   │   ├── constants.js                    #   Lazy re-exports from context (CLI backward compat)
+│   │   ├── config-schema.js                #   JSDoc typedefs for configuration
+│   │   ├── utils.js                        #   sortByCount, pct, incr, mergeCounters, compact, …
+│   │   └── files.js                        #   findFiles, readSafe, writeReports, clearReports, …
+│   ├── sources/                            # Import source classification
 │   │   └── analyze-ui-component-sources.js
-│   ├── html-tags/                      # HTML tag usage analysis
+│   ├── html-tags/                          # HTML tag usage analysis
 │   │   └── analyze-html-tags.js
-│   ├── customizations/                 # Inline style & styled() analysis
-│   │   └── analyze-sanity-ui-customizations.js
-│   ├── per-component/                  # Per-component analysis + default detection
+│   ├── customizations/                     # Inline style & styled() analysis
+│   │   └── analyze-customizations.js
+│   ├── per-component/                      # Per-component analysis + default detection
 │   │   ├── analyze-per-component.js
 │   │   └── detect-prop-defaults.js
-│   ├── prop-combos/                    # Prop combination cross-tabulation
+│   ├── prop-combos/                        # Prop combination cross-tabulation
 │   │   └── analyze-prop-combos.js
-│   ├── prop-surface/                   # Character footprint of UI props
+│   ├── prop-surface/                       # Character footprint of UI props
 │   │   └── analyze-prop-surface.js
-│   ├── line-ownership/                 # Line-of-code footprint
+│   ├── line-ownership/                     # Line-of-code footprint
 │   │   └── analyze-line-ownership.js
-│   ├── components/                     # React Scanner post-processing
-│   ├── ui-components/                  # UI wrapper layer post-processing
-│   └── __tests__/                      # Unit tests
+│   ├── components/                         # React Scanner post-processing
+│   ├── ui-components/                      # UI wrapper layer post-processing
+│   └── __tests__/                          # Unit tests
+│       ├── api.test.js                     #   Library API integration tests
 │       ├── lib.test.js
 │       ├── html-tags.test.js
 │       ├── customizations.test.js
 │       ├── sources.test.js
 │       └── per-component.test.js
-├── dashboard/                          # Vite + React dashboard for browsing reports
-├── reports/                            # Generated output (cleared on full run)
+├── dashboard/                              # Vite + React dashboard for browsing reports
+├── reports/                                # Generated output (cleared on full CLI run)
 ├── package.json
 ├── jest.config.js
 └── README.md
@@ -336,4 +484,4 @@ Prop defaults are detected automatically from the usage data — no manual confi
 - **[React Scanner](https://github.com/moroshko/react-scanner)** — component-level usage via static analysis
 - **[glob](https://github.com/isaacs/node-glob)** — file discovery
 - **[Jest](https://jestjs.io/)** — testing
-- **Node.js** — custom AST-pattern scripts for icons, HTML tags, styled analysis, and prop detection
+- **Node.js** — custom AST-pattern scripts for HTML tags, styled analysis, and prop detection
