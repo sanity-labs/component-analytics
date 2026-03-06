@@ -488,6 +488,7 @@ function normalizeValue(classified) {
  * @typedef {object} ComponentInstance
  * @property {string}                     component   - Original tracked UI library name.
  * @property {Array<{ name: string, value: string }>} props - Parsed props.
+ * @property {boolean}                    hasChildren - `true` when the tag has children (`<C>…</C>`), `false` when self-closing (`<C />`).
  * @property {number}                     line        - 1-based line number in the source file.
  * @property {number}                     startOffset - Character offset of the opening `<`.
  * @property {number}                     endOffset   - Character offset just past the closing `>` of the opening tag.
@@ -534,9 +535,11 @@ function analyzeFileContent(content, ctx) {
     const props = parseProps(tagBody);
 
     const line = lineNumberAt(content, openMatch.index);
+    const selfClosing = tagEnd > 0 && content[tagEnd - 1] === "/";
     instances.push({
       component: original,
       props,
+      hasChildren: !selfClosing,
       line,
       startOffset: openMatch.index,
       endOffset: tagEnd + 1,
@@ -582,6 +585,7 @@ function escapeRegex(s) {
  * @property {string}                          component       - tracked UI library export name.
  * @property {number}                          totalImports    - Files that import this component.
  * @property {number}                          totalInstances  - JSX `<Component>` occurrences.
+ * @property {number}                          instancesWithChildren - Instances rendered with children (`<C>…</C>`).
  * @property {Object<string, PropValueBucket>} props           - Per-prop breakdown.
  * @property {Object<string, number>}          codebaseImports - Imports per codebase.
  * @property {Object<string, number>}          codebaseInstances - Instances per codebase.
@@ -604,6 +608,7 @@ function createEmptyReport(component, ctx) {
     library: _identifyComponentLibrary(component) || null,
     totalImports: 0,
     totalInstances: 0,
+    instancesWithChildren: 0,
     props: {},
     codebaseImports: {},
     codebaseInstances: {},
@@ -724,6 +729,7 @@ function mergeFileResult(reports, fileResult, codebase, filePath, content) {
     if (!report) continue; // shouldn't happen, but guard
 
     report.totalInstances++;
+    if (instance.hasChildren) report.instancesWithChildren++;
     incr(report.codebaseInstances, codebase);
 
     if (filePath) {
@@ -793,6 +799,7 @@ function buildComponentJson(report) {
     library: report.library,
     totalImports: report.totalImports,
     totalInstances: report.totalInstances,
+    instancesWithChildren: report.instancesWithChildren,
     codebaseImports: report.codebaseImports,
     codebaseInstances: report.codebaseInstances,
     uniqueProps: Object.keys(report.props).length,

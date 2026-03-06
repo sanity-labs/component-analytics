@@ -886,6 +886,54 @@ describe("analyzeFileContent", () => {
     expect(propNames).toContain("overflow");
     expect(propNames).toContain("style");
   });
+
+  test("detects hasChildren for self-closing vs children-bearing tags", () => {
+    const content = `
+      import { Button, Card, Flex } from '@sanity/ui'
+      import { AddIcon } from '@sanity/icons'
+
+      export function MyComponent() {
+        return (
+          <Card padding={4}>
+            <Flex gap={2}>
+              <Button mode="ghost">Save</Button>
+              <AddIcon />
+            </Flex>
+          </Card>
+        )
+      }
+    `;
+
+    const result = analyzeFileContent(content);
+    expect(result.instances.length).toBe(4);
+
+    const card = result.instances.find((i) => i.component === "Card");
+    const flex = result.instances.find((i) => i.component === "Flex");
+    const button = result.instances.find((i) => i.component === "Button");
+    const icon = result.instances.find((i) => i.component === "AddIcon");
+
+    // Card, Flex, and Button have children (not self-closing)
+    expect(card.hasChildren).toBe(true);
+    expect(flex.hasChildren).toBe(true);
+    expect(button.hasChildren).toBe(true);
+
+    // AddIcon is self-closing
+    expect(icon.hasChildren).toBe(false);
+  });
+
+  test("detects hasChildren=false for self-closing tags with props", () => {
+    const content = `
+      import { TextInput } from '@sanity/ui'
+
+      export function MyForm() {
+        return <TextInput placeholder="Name" value={name} onChange={setName} />
+      }
+    `;
+
+    const result = analyzeFileContent(content);
+    expect(result.instances.length).toBe(1);
+    expect(result.instances[0].hasChildren).toBe(false);
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -900,6 +948,7 @@ describe("createEmptyReport", () => {
       library: "Sanity UI",
       totalImports: 0,
       totalInstances: 0,
+      instancesWithChildren: 0,
       props: {},
       codebaseImports: {},
       codebaseInstances: {},
@@ -1491,6 +1540,94 @@ describe("mergeFileResult", () => {
     expect(reports.Card.totalInstances).toBe(1);
     expect(reports.Card.references).toEqual([]);
   });
+
+  test("tracks instancesWithChildren from hasChildren flag", () => {
+    const reports = {
+      Button: createEmptyReport("Button"),
+    };
+
+    const fileResult = {
+      importMap: { Button: "Button" },
+      instances: [
+        {
+          component: "Button",
+          props: [{ name: "mode", value: "'ghost'" }],
+          hasChildren: true,
+          line: 5,
+        },
+        {
+          component: "Button",
+          props: [{ name: "mode", value: "'default'" }],
+          hasChildren: false,
+          line: 10,
+        },
+        {
+          component: "Button",
+          props: [],
+          hasChildren: true,
+          line: 15,
+        },
+      ],
+    };
+
+    mergeFileResult(reports, fileResult, "Studio", "src/Buttons.tsx");
+
+    expect(reports.Button.totalInstances).toBe(3);
+    expect(reports.Button.instancesWithChildren).toBe(2);
+  });
+
+  test("instancesWithChildren stays zero when all tags are self-closing", () => {
+    const reports = {
+      Card: createEmptyReport("Card"),
+    };
+
+    const fileResult = {
+      importMap: { Card: "Card" },
+      instances: [
+        { component: "Card", props: [], hasChildren: false, line: 3 },
+        { component: "Card", props: [], hasChildren: false, line: 7 },
+      ],
+    };
+
+    mergeFileResult(reports, fileResult, "Studio", "src/Cards.tsx");
+
+    expect(reports.Card.totalInstances).toBe(2);
+    expect(reports.Card.instancesWithChildren).toBe(0);
+  });
+
+  test("instancesWithChildren accumulates across multiple files", () => {
+    const reports = {
+      Button: createEmptyReport("Button"),
+    };
+
+    mergeFileResult(
+      reports,
+      {
+        importMap: { Button: "Button" },
+        instances: [
+          { component: "Button", props: [], hasChildren: true, line: 5 },
+        ],
+      },
+      "Studio",
+      "src/A.tsx",
+    );
+
+    mergeFileResult(
+      reports,
+      {
+        importMap: { Button: "Button" },
+        instances: [
+          { component: "Button", props: [], hasChildren: true, line: 3 },
+          { component: "Button", props: [], hasChildren: false, line: 8 },
+        ],
+      },
+      "Canvas",
+      "src/B.tsx",
+    );
+
+    expect(reports.Button.totalInstances).toBe(3);
+    expect(reports.Button.instancesWithChildren).toBe(2);
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1502,6 +1639,7 @@ describe("buildComponentJson", () => {
     const report = createEmptyReport("Card");
     report.totalImports = 50;
     report.totalInstances = 120;
+    report.instancesWithChildren = 85;
     report.codebaseImports = { sanity: 30, canvas: 15, huey: 5 };
     report.codebaseInstances = { sanity: 80, canvas: 30, huey: 10 };
     report.references = [
@@ -1526,6 +1664,7 @@ describe("buildComponentJson", () => {
       huey: 10,
     });
     expect(json.uniqueProps).toBe(2);
+    expect(json.instancesWithChildren).toBe(85);
     expect(json.avgPropsPerInstance).toBeCloseTo(4 / 120, 2);
 
     // unsetInstances = totalInstances − totalUsages for each prop
@@ -1614,6 +1753,28 @@ describe("buildComponentJson", () => {
     const json = buildComponentJson(report);
 
     expect(json.avgPropsPerInstance).toBe(0);
+  });
+
+  test("includes instancesWithChildren in output", () => {
+    const report = createEmptyReport("Button");
+    report.totalInstances = 10;
+    report.instancesWithChildren = 7;
+    recordProp(report, "mode", "'ghost'");
+
+    const json = buildComponentJson(report);
+
+    expect(json.instancesWithChildren).toBe(7);
+    expect(json.totalInstances).toBe(10);
+  });
+
+  test("instancesWithChildren is zero when all self-closing", () => {
+    const report = createEmptyReport("Spinner");
+    report.totalInstances = 5;
+    // instancesWithChildren defaults to 0 from createEmptyReport
+
+    const json = buildComponentJson(report);
+
+    expect(json.instancesWithChildren).toBe(0);
   });
 });
 
@@ -2081,6 +2242,14 @@ describe("Integration tests", () => {
 
     // Text muted prop: used 1 time (boolean shorthand)
     expect(reports.Text.props.muted.totalUsages).toBe(1);
+
+    // instancesWithChildren: Card, Flex, Stack, Button all have children;
+    // Text is used with children (wraps text content) in all 3 instances
+    expect(reports.Card.instancesWithChildren).toBe(2);
+    expect(reports.Text.instancesWithChildren).toBe(3);
+    expect(reports.Button.instancesWithChildren).toBe(1);
+    expect(reports.Flex.instancesWithChildren).toBe(1);
+    expect(reports.Stack.instancesWithChildren).toBe(1);
 
     // Card references come from both files
     expect(reports.Card.references.length).toBe(2);
