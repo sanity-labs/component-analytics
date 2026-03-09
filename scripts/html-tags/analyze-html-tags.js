@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/* eslint-disable no-unused-vars */
 
 /**
  * @module analyze-html-tags
@@ -29,12 +30,31 @@ const {
   mergeCounters,
   compact,
 } = require("../lib/utils");
+const path = require("path");
 const {
   codebaseExists,
   findFiles,
   readSafe,
   writeReports,
 } = require("../lib/files");
+
+// ─── Utilities ────────────────────────────────────────────────────────────────
+
+/**
+ * Compute the 1-based line number for a character offset in a string.
+ *
+ * @param {string} content - Full file content.
+ * @param {number} offset  - Character index (0-based).
+ * @returns {number} 1-based line number.
+ */
+function lineNumberAt(content, offset) {
+  if (offset <= 0) return 1;
+  let line = 1;
+  for (let i = 0; i < offset && i < content.length; i++) {
+    if (content[i] === "\n") line++;
+  }
+  return line;
+}
 
 // ─── Tag Category Lookup ──────────────────────────────────────────────────────
 
@@ -174,6 +194,51 @@ function extractHTMLTags(content) {
   return full;
 }
 
+// ─── Instance-level extraction (with references) ──────────────────────────────
+
+/**
+ * @typedef {object} TagInstance
+ * @property {string} tag        - The HTML/SVG tag name.
+ * @property {number} line       - 1-based line number in the source file.
+ * @property {string} sourceCode - The opening tag collapsed to a single line.
+ */
+
+/**
+ * Extract every HTML/SVG tag instance with its position in the source.
+ *
+ * Unlike {@link extractHTMLTags} (which returns only counts), this
+ * function returns an array of individual instances so that callers
+ * can build per-tag reference lists with file + line information.
+ *
+ * Uses the same "full" regex as {@link matchFullTags} to capture the
+ * complete opening tag (for the `sourceCode` snippet).
+ *
+ * @param {string} content - Raw file content.
+ * @returns {TagInstance[]}
+ */
+function extractHTMLTagInstances(content) {
+  // Run the regex against the original content (not cleaned) so that
+  // character offsets are accurate for lineNumberAt.  The tag-matching
+  // regex only captures `<lowercase…>` patterns which don't appear
+  // inside string literals in real JSX/TSX files.
+  const regex = /<([a-z][a-zA-Z0-9]*)\s*(?:[^>]*?)?\/?>/g;
+
+  /** @type {TagInstance[]} */
+  const instances = [];
+  let m;
+  while ((m = regex.exec(content)) !== null) {
+    const tag = m[1];
+    if (!KNOWN_TAGS.has(tag)) continue;
+
+    instances.push({
+      tag,
+      line: lineNumberAt(content, m.index),
+      sourceCode: m[0].replace(/\s+/g, " ").trim(),
+    });
+  }
+  return instances;
+}
+
 // ─── Per-file analysis ────────────────────────────────────────────────────────
 
 /**
@@ -181,6 +246,7 @@ function extractHTMLTags(content) {
  * @property {Object<string, number>} tags       - Tag → count.
  * @property {number}                 totalTags  - Sum of all counts.
  * @property {number}                 uniqueTags - Number of distinct tags.
+ * @property {TagInstance[]}          instances  - Every tag instance with position.
  */
 
 /**
@@ -191,6 +257,7 @@ function extractHTMLTags(content) {
  */
 function analyzeContent(content) {
   const tags = extractHTMLTags(content);
+  const instances = extractHTMLTagInstances(content);
   let totalTags = 0;
   for (const count of Object.values(tags)) {
     totalTags += count;
@@ -199,37 +266,58 @@ function analyzeContent(content) {
     tags,
     totalTags,
     uniqueTags: Object.keys(tags).length,
+    instances,
   };
 }
 
 // ─── Aggregation ──────────────────────────────────────────────────────────────
 
 /**
+ * @typedef {object} TagReference
+ * @property {string} file       - File path relative to the codebase root.
+ * @property {number} line       - 1-based line number.
+ * @property {string} codebase   - Which codebase the file belongs to.
+ * @property {string} sourceCode - The opening tag collapsed to a single line.
+ */
+
+/**
  * @typedef {object} AggregatedTagResult
- * @property {Object<string, number>} tags           - Tag → total count.
- * @property {number}                 totalInstances - Grand total across all tags.
- * @property {number}                 uniqueTags     - Distinct tag count.
- * @property {number}                 fileCount      - Number of files analysed.
- * @property {number}                 filesWithHTML  - Files that contained ≥ 1 tag.
+ * @property {Object<string, number>}          tags           - Tag → total count.
+ * @property {Object<string, TagReference[]>}  references     - Tag → array of references.
+ * @property {number}                          totalInstances - Grand total across all tags.
+ * @property {number}                          uniqueTags     - Distinct tag count.
+ * @property {number}                          fileCount      - Number of files analysed.
+ * @property {number}                          filesWithHTML  - Files that contained ≥ 1 tag.
  */
 
 /**
  * Aggregate results from multiple file analyses into a single summary.
  *
+ * When `filePath` and `codebase` are provided, per-instance references
+ * are collected for every tag.  When omitted (backward-compatible path),
+ * the `references` map is still created but left empty.
+ *
  * @param {FileTagResult[]} fileResults
+ * @param {object}          [options]
+ * @param {string[]}        [options.filePaths]  - Parallel array of relative file paths.
+ * @param {string}          [options.codebase]   - Codebase name for references.
  * @returns {AggregatedTagResult}
  */
-function aggregateResults(fileResults) {
+function aggregateResults(fileResults, options = {}) {
+  const { filePaths, codebase } = options;
+
   /** @type {AggregatedTagResult} */
   const aggregated = {
     tags: {},
+    references: {},
     totalInstances: 0,
     uniqueTags: 0,
     fileCount: fileResults.length,
     filesWithHTML: 0,
   };
 
-  for (const result of fileResults) {
+  for (let i = 0; i < fileResults.length; i++) {
+    const result = fileResults[i];
     if (result.totalTags > 0) {
       aggregated.filesWithHTML++;
     }
@@ -237,13 +325,28 @@ function aggregateResults(fileResults) {
       incr(aggregated.tags, tag, count);
       aggregated.totalInstances += count;
     }
+
+    // Collect per-instance references when file paths are available
+    if (filePaths && codebase && result.instances) {
+      for (const inst of result.instances) {
+        if (!aggregated.references[inst.tag]) {
+          aggregated.references[inst.tag] = [];
+        }
+        aggregated.references[inst.tag].push({
+          file: filePaths[i],
+          line: inst.line,
+          codebase,
+          sourceCode: inst.sourceCode,
+        });
+      }
+    }
   }
 
   aggregated.uniqueTags = Object.keys(aggregated.tags).length;
   return aggregated;
 }
 
-// ─── Report: Text ─────────────────────────────────────────────────────────────
+// ─── Report: Markdown ─────────────────────────────────────────────────────────
 
 /**
  * Format a ranked table of tags for the markdown report.
@@ -367,7 +470,7 @@ function formatAggregateSection(results, categoryMap) {
  * @param {Object<string, AggregatedTagResult | null>} results - Keyed by codebase name.
  * @returns {string}
  */
-function generateTextReport(results) {
+function generateMarkdown(results) {
   const categoryMap = buildTagCategoryMap();
   const lines = [];
 
@@ -476,6 +579,16 @@ function buildCodebaseJsonSummary(data, categoryMap) {
       count,
       category: getTagCategory(tag, categoryMap),
     })),
+    tags: Object.fromEntries(
+      sorted.map(([tag, count]) => [
+        tag,
+        {
+          count,
+          category: getTagCategory(tag, categoryMap),
+          references: (data.references && data.references[tag]) || [],
+        },
+      ]),
+    ),
   };
 }
 
@@ -547,15 +660,20 @@ async function analyzeCodebase(codebase) {
   const files = await findFiles(codebase);
   console.log(`   Found ${files.length} component files`);
 
+  const { codebasePath } = require("../lib/files");
+  const basePath = codebasePath(codebase);
+
   const fileResults = [];
+  const filePaths = [];
   for (const file of files) {
     const content = readSafe(file);
     if (content !== null) {
       fileResults.push(analyzeContent(content));
+      filePaths.push(path.relative(basePath, file));
     }
   }
 
-  const aggregated = aggregateResults(fileResults);
+  const aggregated = aggregateResults(fileResults, { filePaths, codebase });
   console.log(
     `   ${aggregated.uniqueTags} unique tags, ${aggregated.totalInstances} total instances`,
   );
@@ -582,12 +700,12 @@ async function main() {
   }
 
   writeReports("html-tags", "report", {
-    text: generateTextReport(results),
+    markdown: generateMarkdown(results),
     csv: generateCSV(results),
     json: generateJSON(results),
   });
 
-  console.log("\n✅ Text report saved");
+  console.log("\n✅ Markdown report saved");
   console.log("✅ CSV report saved");
   console.log("✅ JSON report saved");
 
@@ -618,9 +736,13 @@ if (require.main === module) {
 module.exports = {
   // Extraction
   extractHTMLTags,
+  extractHTMLTagInstances,
   stripStringLiterals,
   matchFullTags,
   matchSimpleTags,
+
+  // Utilities
+  lineNumberAt,
 
   // Analysis
   analyzeContent,
@@ -631,7 +753,7 @@ module.exports = {
   getTagCategory,
 
   // Report generation
-  generateTextReport,
+  generateMarkdown,
   generateCSV,
   generateJSON,
 

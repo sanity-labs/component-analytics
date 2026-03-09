@@ -314,7 +314,7 @@ function classifyValue(raw) {
   if (/^['"](.*)['"]$/.test(raw)) return raw.slice(1, -1);
 
   // Array literal: [1, 2, 3]
-  if (/^\[.*\]$/.test(raw)) {
+  if (/^\[.*\]$/s.test(raw)) {
     const inner = raw.slice(1, -1).trim();
     if (inner === "") return "[]";
 
@@ -340,10 +340,15 @@ function classifyValue(raw) {
     }
     elements.push(inner.slice(start).trim());
 
+    // Filter out empty elements caused by trailing commas:
+    //   [1, 2, 3,]  →  ["1", "2", "3", ""]
+    const nonEmpty = elements.filter((e) => e.length > 0);
+    if (nonEmpty.length === 0) return "[]";
+
     // Check if every element is a simple literal (number, string, boolean)
     const parsed = [];
     let allLiteral = true;
-    for (const el of elements) {
+    for (const el of nonEmpty) {
       if (el === "true" || el === "false") {
         parsed.push(el);
       } else if (/^-?\d+(\.\d+)?$/.test(el)) {
@@ -361,7 +366,7 @@ function classifyValue(raw) {
   }
 
   // Object literal: { key: value }
-  if (/^\{.*\}$/.test(raw)) {
+  if (/^\{.*\}$/s.test(raw)) {
     const inner = raw.slice(1, -1).trim();
     if (inner === "") return "{}";
 
@@ -387,26 +392,45 @@ function classifyValue(raw) {
     }
     entries.push(inner.slice(start).trim());
 
-    // Check if every entry is key: literalValue
+    // Filter out empty entries caused by trailing commas:
+    //   { color: 'red', }  →  ["color: 'red'", ""]
+    const nonEmpty = entries.filter((e) => e.length > 0);
+    if (nonEmpty.length === 0) return "{}";
+
+    // Classify each entry as key: classifiedValue.
+    // If every value is a simple literal, the result is a fully literal
+    // object like `{color: "red", size: 4}`.  If any value is dynamic,
+    // the object is still "unwound" so the keys remain visible:
+    // `{color: <variable>, padding: 4}`.
+    //
+    // Only entries with a spread (`...`) or a non-identifier key cause
+    // a full collapse to `<object>`.
     const parsed = [];
     let allLiteral = true;
-    for (const entry of entries) {
+    for (const entry of nonEmpty) {
+      // Spread properties can't be unwound
+      if (entry.startsWith("...")) return "<object>";
+
       // Split on the first colon to get key and value
       const colonIdx = entry.indexOf(":");
       if (colonIdx === -1) {
-        allLiteral = false;
-        break;
+        // Shorthand property like `{ color }` — treat as dynamic
+        if (/^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(entry.trim())) {
+          parsed.push(entry.trim() + ": <variable>");
+          allLiteral = false;
+          continue;
+        }
+        return "<object>";
       }
       const key = entry.slice(0, colonIdx).trim();
       const val = entry.slice(colonIdx + 1).trim();
 
       // Key must be a simple identifier
       if (!/^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(key)) {
-        allLiteral = false;
-        break;
+        return "<object>";
       }
 
-      // Value must be a simple literal (number, string, boolean)
+      // Classify the value — literals are kept, dynamic values get a label
       if (val === "true" || val === "false") {
         parsed.push(key + ": " + val);
       } else if (/^-?\d+(\.\d+)?$/.test(val)) {
@@ -414,13 +438,19 @@ function classifyValue(raw) {
       } else if (/^['"](.*)['"]$/.test(val)) {
         parsed.push(key + ': "' + val.slice(1, -1) + '"');
       } else {
+        // Classify the dynamic value to get a meaningful label
+        const innerClassified = classifyValue(val);
+        parsed.push(key + ": " + innerClassified);
         allLiteral = false;
-        break;
       }
     }
 
-    if (allLiteral) return "{" + parsed.join(", ") + "}";
-    return "<object>";
+    const result = "{" + parsed.join(", ") + "}";
+    // When all values are literals, return the object as-is.
+    // When any value is dynamic, tag it so normalizeValue can
+    // distinguish fully-literal objects from unwound ones.
+    if (allLiteral) return result;
+    return "<unwound>" + result;
   }
 
   // Arrow function or function reference
@@ -460,8 +490,17 @@ function normalizeValue(classified) {
   }
 
   // Keep literal object values when short enough to be useful
-  if (classified.startsWith("{") && classified.length <= 40) {
+  if (classified.startsWith("{") && classified.length <= 60) {
     return classified;
+  }
+
+  // Keep unwound objects (with dynamic values) when short enough.
+  // Strip the <unwound> prefix so the final value looks like a
+  // normal object: {color: <variable>, padding: 4}
+  if (classified.startsWith("<unwound>{")) {
+    const obj = classified.slice("<unwound>".length);
+    if (obj.length <= 60) return obj;
+    return "<object>";
   }
 
   // Keep short string literals (common enum values like "ghost", "primary")
@@ -477,6 +516,7 @@ function normalizeValue(classified) {
   if (classified.startsWith("<variable:")) return "<variable>";
   if (classified.startsWith("[")) return "<array>";
   if (classified.startsWith("{")) return "<object>";
+  if (classified.startsWith("<unwound>")) return "<object>";
   return classified;
 }
 
@@ -986,16 +1026,16 @@ function generateSummaryJSON(reports) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// REPORT GENERATION — summary TXT
+// REPORT GENERATION — summary Markdown
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
- * Generate a plain-text summary report.
+ * Generate a Markdown summary report.
  *
  * @param {Object<string, ComponentReport>} reports
  * @returns {string}
  */
-function generateSummaryText(reports, ctx) {
+function generateSummaryMarkdown(reports, ctx) {
   const _uiLibraryNames = ctx ? ctx.uiLibraryNames : UI_LIBRARY_NAMES;
   const sorted = Object.values(reports).sort(
     (a, b) => b.totalInstances - a.totalInstances,
@@ -1257,13 +1297,13 @@ async function main() {
   const summaryJSON = generateSummaryJSON(reports);
   fs.writeFileSync(path.join(outDir, "summary.json"), summaryJSON);
 
-  const summaryText = generateSummaryText(reports);
-  fs.writeFileSync(path.join(outDir, "summary.md"), summaryText);
+  const summaryMarkdown = generateSummaryMarkdown(reports);
+  fs.writeFileSync(path.join(outDir, "summary.md"), summaryMarkdown);
 
   console.log(`\n✅ ${writtenCount} component reports written`);
   console.log("✅ Summary CSV written");
   console.log("✅ Summary JSON written");
-  console.log("✅ Summary TXT written");
+  console.log("✅ Summary Markdown written");
 
   // Quick console summary
   console.log("\n" + "─".repeat(60));
@@ -1333,5 +1373,5 @@ module.exports = {
   buildComponentJson,
   generateSummaryCSV,
   generateSummaryJSON,
-  generateSummaryText,
+  generateSummaryMarkdown,
 };

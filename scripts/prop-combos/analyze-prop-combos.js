@@ -221,7 +221,7 @@ async function analyzeCombo(combo) {
  * @param {ComboResult} result
  * @returns {string}
  */
-function generateText(result) {
+function generateMarkdown(result) {
   const lines = [];
   const propsLabel = result.props.join(" × ");
 
@@ -327,7 +327,7 @@ function csvEscape(value) {
  * @param {ComboResult} result
  * @returns {string}
  */
-function generateCsv(result) {
+function generateCSV(result) {
   const rows = [];
   const header = ["Component", ...result.props, ...CODEBASES, "Total"].map(
     csvEscape,
@@ -358,7 +358,7 @@ function generateCsv(result) {
  * @param {ComboResult} result
  * @returns {string}
  */
-function generateJson(result) {
+function generateJSON(result) {
   const sorted = sortByCount(result.comboCounts);
 
   const output = {
@@ -471,12 +471,12 @@ async function main() {
 
     // Write this combo's reports to its own directory
     const { subdir, baseName } = comboReportPath(result);
-    const text = generateText(result);
-    const csv = generateCsv(result);
-    const json = generateJson(result);
+    const markdown = generateMarkdown(result);
+    const csv = generateCSV(result);
+    const json = generateJSON(result);
 
     const { mdPath, csvPath, jsonPath } = writeReports(subdir, baseName, {
-      text,
+      markdown,
       csv,
       json,
     });
@@ -515,9 +515,9 @@ if (require.main === module) {
 module.exports = {
   analyzeCodebaseForCombo,
   analyzeCombo,
-  generateText,
-  generateCsv,
-  generateJson,
+  generateMarkdown,
+  generateCSV,
+  generateJSON,
   comboReportPath,
   comboKey,
   normalize,

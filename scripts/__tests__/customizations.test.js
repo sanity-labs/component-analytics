@@ -8,7 +8,7 @@ const {
   analyzeContent,
   aggregateResults,
   sortByCount,
-  generateTextReport,
+  generateMarkdown,
   generateCSV,
   generateJSON,
   TRACKED_COMPONENTS,
@@ -974,9 +974,9 @@ describe("sortByCount", () => {
 });
 
 // ---------------------------------------------------------------------------
-// generateTextReport
+// generateMarkdown
 // ---------------------------------------------------------------------------
-describe("generateTextReport", () => {
+describe("generateMarkdown", () => {
   const makeResults = (overrides = {}) => ({
     sanity: {
       totalFiles: 100,
@@ -1001,18 +1001,18 @@ describe("generateTextReport", () => {
   });
 
   test("generates a non-empty string", () => {
-    const report = generateTextReport(makeResults());
+    const report = generateMarkdown(makeResults());
     expect(typeof report).toBe("string");
     expect(report.length).toBeGreaterThan(0);
   });
 
   test("includes codebase name", () => {
-    const report = generateTextReport(makeResults());
+    const report = generateMarkdown(makeResults());
     expect(report).toContain("## sanity");
   });
 
   test("includes customization counts", () => {
-    const report = generateTextReport(makeResults());
+    const report = generateMarkdown(makeResults());
     expect(report).toContain("50");
     expect(report).toContain("20");
   });
@@ -1038,7 +1038,7 @@ describe("generateTextReport", () => {
         allStyledUsages: [],
       },
     };
-    const report = generateTextReport(results);
+    const report = generateMarkdown(results);
     expect(report).toContain("Aggregate");
     expect(report).toContain("All Codebases Combined");
   });
@@ -1048,7 +1048,7 @@ describe("generateTextReport", () => {
       sanity: makeResults().sanity,
       canvas: null,
     };
-    const report = generateTextReport(results);
+    const report = generateMarkdown(results);
     expect(report).toContain("## sanity");
     expect(report).not.toContain("## canvas");
   });
@@ -1069,7 +1069,7 @@ describe("generateTextReport", () => {
         allStyledUsages: [],
       },
     };
-    const report = generateTextReport(results);
+    const report = generateMarkdown(results);
     expect(report).toContain("0");
     // Should still produce a valid report
     expect(report.length).toBeGreaterThan(0);
@@ -1077,20 +1077,20 @@ describe("generateTextReport", () => {
 
   test("handles all codebases being null", () => {
     const results = { sanity: null, canvas: null };
-    const report = generateTextReport(results);
+    const report = generateMarkdown(results);
     expect(typeof report).toBe("string");
     expect(report).toContain("Aggregate");
   });
 
   test("shows component names in report", () => {
-    const report = generateTextReport(makeResults());
+    const report = generateMarkdown(makeResults());
     expect(report).toContain("Card");
     expect(report).toContain("Box");
     expect(report).toContain("Flex");
   });
 
   test("shows property names in report", () => {
-    const report = generateTextReport(makeResults());
+    const report = generateMarkdown(makeResults());
     expect(report).toContain("padding");
     expect(report).toContain("background");
   });
@@ -1535,7 +1535,7 @@ describe("Integration tests", () => {
       },
     };
 
-    const text = generateTextReport(results);
+    const text = generateMarkdown(results);
     expect(text).toContain("sanity");
     expect(text).toContain("canvas");
     expect(text).toContain("Card");

@@ -552,7 +552,7 @@ function aggregateResults(fileResults) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// REPORT — Text
+// REPORT — Markdown
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
@@ -760,7 +760,7 @@ function formatAggregateSection(liveResults) {
  * @param {Object<string, AggregatedCustomizationResult | null>} results
  * @returns {string}
  */
-function generateTextReport(results) {
+function generateMarkdown(results) {
   const lines = [];
   lines.push(
     `# ${UI_LIBRARY_NAMES} Customization Analysis — Inline Styles & styled()`,
@@ -1015,12 +1015,12 @@ async function main() {
   }
 
   writeReports("customizations", "report", {
-    text: generateTextReport(results),
+    markdown: generateMarkdown(results),
     csv: generateCSV(results),
     json: generateJSON(results),
   });
 
-  console.log("\n✅ Text report saved");
+  console.log("\n✅ Markdown report saved");
   console.log("✅ CSV report saved");
   console.log("✅ JSON report saved");
 
@@ -1068,7 +1068,7 @@ module.exports = {
   flattenComponentCounts,
 
   // Report generation
-  generateTextReport,
+  generateMarkdown,
   generateCSV,
   generateJSON,
 

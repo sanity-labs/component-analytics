@@ -446,7 +446,7 @@ function aggregateResults(fileResults) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// REPORT — Text
+// REPORT — Markdown
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
@@ -455,7 +455,7 @@ function aggregateResults(fileResults) {
  * @param {Object<string, CodebaseLineMetrics | null>} results
  * @returns {string}
  */
-function generateTextReport(results) {
+function generateMarkdown(results) {
   const lines = [];
 
   lines.push(`# ${UI_LIBRARY_NAMES} Line Ownership Analysis`);
@@ -898,12 +898,12 @@ async function main() {
   }
 
   writeReports("line-ownership", "report", {
-    text: generateTextReport(results),
+    markdown: generateMarkdown(results),
     csv: generateCSV(results),
     json: generateJSON(results),
   });
 
-  console.log("\n✅ Text report saved");
+  console.log("\n✅ Markdown report saved");
   console.log("✅ CSV report saved");
   console.log("✅ JSON report saved");
 
@@ -966,7 +966,7 @@ module.exports = {
   aggregateResults,
 
   // Report generation
-  generateTextReport,
+  generateMarkdown,
   generateCSV,
   generateJSON,
 };

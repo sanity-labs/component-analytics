@@ -463,7 +463,7 @@ function aggregateResults(fileResults) {
   }
 
   // ── Backward-compatible combined "trackedUI" field ──────────────────
-  // The text report, CSV, and main() summary still use a single
+  // The markdown report, CSV, and main() summary still use a single
   // combined tracked-UI bucket.  Compute it from the per-library data
   // so those code paths continue to work without changes.
   aggregated.trackedUI = { components: {}, totalInstances: 0 };
@@ -526,11 +526,11 @@ async function analyzeCodebase(codebase) {
 }
 
 /**
- * Generate comparison report
+ * Generate a Markdown comparison report.
  * @param {object} results - Results object keyed by codebase name
  * @returns {string} - Formatted markdown report
  */
-function generateReport(results) {
+function generateMarkdown(results) {
   const reportLines = [];
 
   reportLines.push(
@@ -1080,11 +1080,11 @@ async function main() {
     fs.mkdirSync(outputDir, { recursive: true });
   }
 
-  // Text report
-  const textReport = generateReport(results);
-  const textPath = path.join(outputDir, "report.md");
-  fs.writeFileSync(textPath, textReport);
-  console.log(`\n✅ Text report saved to: ${textPath}`);
+  // Markdown report
+  const markdownReport = generateMarkdown(results);
+  const markdownPath = path.join(outputDir, "report.md");
+  fs.writeFileSync(markdownPath, markdownReport);
+  console.log(`\n✅ Markdown report saved to: ${markdownPath}`);
 
   // CSV report
   const csvReport = generateCSV(results);
@@ -1168,7 +1168,7 @@ module.exports = {
   analyzeCodebase,
   countPropReferences,
   stripImportStatements,
-  generateReport,
+  generateMarkdown,
   generateCSV,
   generateJSON,
 };

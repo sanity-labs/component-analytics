@@ -41,7 +41,11 @@
 
 // ─── Context factory ──────────────────────────────────────────────────────────
 
-const { createContext, HTML_TAG_CATEGORIES, KNOWN_TAGS } = require("./scripts/lib/context");
+const {
+  createContext,
+  HTML_TAG_CATEGORIES,
+  KNOWN_TAGS,
+} = require("./scripts/lib/context");
 
 // ─── Per-component analysis ───────────────────────────────────────────────────
 
@@ -69,7 +73,7 @@ const _perComponent = require("./scripts/per-component/analyze-per-component");
  * - `analyzeFileContent(content, ctx)` — analyze a file and return every tracked component instance.
  * - `createEmptyReport(component, ctx)` — create an empty report skeleton for a component.
  * - `generateSummaryCSV(reports, ctx)` — generate a summary CSV string.
- * - `generateSummaryText(reports, ctx)` — generate a plain-text summary report.
+ * - `generateSummaryMarkdown(reports, ctx)` — generate a Markdown summary report.
  *
  * **Post-aggregation:**
  * - `applyAutoDetectedDefaults(reports)` — run automatic default-value detection across reports.
@@ -95,7 +99,7 @@ const perComponent = {
   analyzeFileContent: _perComponent.analyzeFileContent,
   createEmptyReport: _perComponent.createEmptyReport,
   generateSummaryCSV: _perComponent.generateSummaryCSV,
-  generateSummaryText: _perComponent.generateSummaryText,
+  generateSummaryMarkdown: _perComponent.generateSummaryMarkdown,
 
   // Post-aggregation
   applyAutoDetectedDefaults: _perComponent.applyAutoDetectedDefaults,
@@ -121,7 +125,7 @@ const sources = {
   analyzeFile: _sources.analyzeFile,
   aggregateResults: _sources.aggregateResults,
   countPropReferences: _sources.countPropReferences,
-  generateReport: _sources.generateReport,
+  generateMarkdown: _sources.generateMarkdown,
   generateCSV: _sources.generateCSV,
   generateJSON: _sources.generateJSON,
 };
@@ -135,12 +139,14 @@ const _htmlTags = require("./scripts/html-tags/analyze-html-tags");
  */
 const htmlTags = {
   extractHTMLTags: _htmlTags.extractHTMLTags,
+  extractHTMLTagInstances: _htmlTags.extractHTMLTagInstances,
   stripStringLiterals: _htmlTags.stripStringLiterals,
   matchFullTags: _htmlTags.matchFullTags,
   matchSimpleTags: _htmlTags.matchSimpleTags,
+  lineNumberAt: _htmlTags.lineNumberAt,
   analyzeContent: _htmlTags.analyzeContent,
   aggregateResults: _htmlTags.aggregateResults,
-  generateTextReport: _htmlTags.generateTextReport,
+  generateMarkdown: _htmlTags.generateMarkdown,
   generateCSV: _htmlTags.generateCSV,
   generateJSON: _htmlTags.generateJSON,
 };
@@ -165,7 +171,7 @@ const customizations = {
   analyzeContent: _customizations.analyzeContent,
   aggregateResults: _customizations.aggregateResults,
   sortByCount: _customizations.sortByCount,
-  generateTextReport: _customizations.generateTextReport,
+  generateMarkdown: _customizations.generateMarkdown,
   generateCSV: _customizations.generateCSV,
   generateJSON: _customizations.generateJSON,
 };
@@ -180,9 +186,9 @@ const _propCombos = require("./scripts/prop-combos/analyze-prop-combos");
 const propCombos = {
   analyzeCodebaseForCombo: _propCombos.analyzeCodebaseForCombo,
   analyzeCombo: _propCombos.analyzeCombo,
-  generateText: _propCombos.generateText,
-  generateCsv: _propCombos.generateCsv,
-  generateJson: _propCombos.generateJson,
+  generateMarkdown: _propCombos.generateMarkdown,
+  generateCSV: _propCombos.generateCSV,
+  generateJSON: _propCombos.generateJSON,
   comboReportPath: _propCombos.comboReportPath,
   comboKey: _propCombos.comboKey,
   normalize: _propCombos.normalize,

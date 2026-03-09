@@ -17,7 +17,7 @@ const {
   buildComponentJson,
   generateSummaryCSV,
   generateSummaryJSON,
-  generateSummaryText,
+  generateSummaryMarkdown,
 } = require("../per-component/analyze-per-component");
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -529,6 +529,14 @@ describe("classifyValue", () => {
     expect(classifyValue("[4, 5, 6]")).toBe("[4, 5, 6]");
   });
 
+  test("classifies array literal with trailing comma", () => {
+    expect(classifyValue("[4, 5, 6,]")).toBe("[4, 5, 6]");
+  });
+
+  test("classifies multi-line array literal", () => {
+    expect(classifyValue("[\n  4,\n  5,\n  6,\n]")).toBe("[4, 5, 6]");
+  });
+
   test("classifies object literal with simple literal values", () => {
     expect(classifyValue('{color: "red"}')).toBe('{color: "red"}');
     expect(classifyValue("{size: 4}")).toBe("{size: 4}");
@@ -538,18 +546,78 @@ describe("classifyValue", () => {
     );
   });
 
+  test("classifies object literal with trailing comma", () => {
+    expect(classifyValue('{color: "red",}')).toBe('{color: "red"}');
+    expect(classifyValue('{color: "red", size: 4,}')).toBe(
+      '{color: "red", size: 4}',
+    );
+  });
+
+  test("classifies multi-line object literal", () => {
+    expect(classifyValue('{\n  color: "red",\n  size: 4,\n}')).toBe(
+      '{color: "red", size: 4}',
+    );
+  });
+
+  test("classifies multi-line object with dynamic values", () => {
+    const multiLine = '{\n  height: contentHeight,\n  position: "relative",\n}';
+    expect(classifyValue(multiLine)).toBe(
+      '<unwound>{height: <variable:contentHeight>, position: "relative"}',
+    );
+  });
+
   test("classifies empty object literal", () => {
     expect(classifyValue("{}")).toBe("{}");
   });
 
-  test("classifies object with dynamic values as <object>", () => {
-    expect(classifyValue("{color: myVar}")).toBe("<object>");
-    expect(classifyValue("{color: getColor()}")).toBe("<object>");
-    expect(classifyValue("{color: a ? b : c}")).toBe("<object>");
+  test("classifies object with only trailing comma as empty", () => {
+    expect(classifyValue("{,}")).toBe("{}");
+    expect(classifyValue("{\n  ,\n}")).toBe("{}");
   });
 
-  test("classifies object with nested object as <object>", () => {
-    expect(classifyValue('{style: {color: "red"}}')).toBe("<object>");
+  test("unwinds object with dynamic values preserving keys", () => {
+    expect(classifyValue("{color: myVar}")).toBe(
+      "<unwound>{color: <variable:myVar>}",
+    );
+    expect(classifyValue("{color: getColor()}")).toBe(
+      "<unwound>{color: <expression>}",
+    );
+    expect(classifyValue("{color: a ? b : c}")).toBe(
+      "<unwound>{color: <ternary>}",
+    );
+  });
+
+  test("unwinds object with mix of literal and dynamic values", () => {
+    expect(classifyValue("{color: myVar, size: 4}")).toBe(
+      "<unwound>{color: <variable:myVar>, size: 4}",
+    );
+    expect(
+      classifyValue('{display: isOpen ? "block" : "none", padding: 4}'),
+    ).toBe("<unwound>{display: <ternary>, padding: 4}");
+  });
+
+  test("unwinds object with nested object value", () => {
+    expect(classifyValue('{style: {color: "red"}}')).toBe(
+      '<unwound>{style: {color: "red"}}',
+    );
+  });
+
+  test("unwinds object with shorthand properties", () => {
+    expect(classifyValue("{color}")).toBe("<unwound>{color: <variable>}");
+    expect(classifyValue("{color, size: 4}")).toBe(
+      "<unwound>{color: <variable>, size: 4}",
+    );
+  });
+
+  test("collapses object with spread to <object>", () => {
+    expect(classifyValue("{...styles}")).toBe("<object>");
+    expect(classifyValue("{...styles, color: 'red'}")).toBe("<object>");
+  });
+
+  test("collapses multi-line object with spread to <object>", () => {
+    const withSpread =
+      '{\n  ...(mode === "default" ? {bg: "red"} : {}),\n  color: "blue",\n}';
+    expect(classifyValue(withSpread)).toBe("<object>");
   });
 
   test("classifies arrow function", () => {
@@ -614,10 +682,35 @@ describe("normalizeValue", () => {
     expect(normalizeValue("{}")).toBe("{}");
   });
 
+  test("keeps literal object values up to 60 chars", () => {
+    const mediumObj = '{firstName: "Alexander", lastName: "Hamilton"}';
+    expect(mediumObj.length).toBeGreaterThan(40);
+    expect(mediumObj.length).toBeLessThanOrEqual(60);
+    expect(normalizeValue(mediumObj)).toBe(mediumObj);
+  });
+
   test("collapses long literal object values to <object>", () => {
-    const longObj = '{firstName: "Alexander", lastName: "Hamilton"}';
-    expect(longObj.length).toBeGreaterThan(40);
+    const longObj =
+      '{borderTop: "1px solid var(--card-border-color)", borderBottom: "2px"}';
+    expect(longObj.length).toBeGreaterThan(60);
     expect(normalizeValue(longObj)).toBe("<object>");
+  });
+
+  test("keeps short unwound object values with keys visible", () => {
+    expect(normalizeValue("<unwound>{color: <variable:x>}")).toBe(
+      "{color: <variable:x>}",
+    );
+    expect(normalizeValue("<unwound>{padding: 4, color: <ternary>}")).toBe(
+      "{padding: 4, color: <ternary>}",
+    );
+  });
+
+  test("collapses long unwound object values to <object>", () => {
+    const longUnwound =
+      "<unwound>{backgroundColor: <variable:x>, borderColor: <variable:y>, outlineColor: <variable:z>}";
+    const inner = longUnwound.slice("<unwound>".length);
+    expect(inner.length).toBeGreaterThan(60);
+    expect(normalizeValue(longUnwound)).toBe("<object>");
   });
 
   test("preserves other category labels", () => {
@@ -626,6 +719,9 @@ describe("normalizeValue", () => {
     expect(normalizeValue("<ternary>")).toBe("<ternary>");
     expect(normalizeValue("<array>")).toBe("<array>");
     expect(normalizeValue("<object>")).toBe("<object>");
+    expect(normalizeValue("<unwound>{a: <variable:x>}")).toBe(
+      "{a: <variable:x>}",
+    );
     expect(normalizeValue("<expression>")).toBe("<expression>");
     expect(normalizeValue("<template>")).toBe("<template>");
   });
@@ -2016,10 +2112,10 @@ describe("generateSummaryJSON", () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// generateSummaryText
+// generateSummaryMarkdown
 // ═══════════════════════════════════════════════════════════════════════════════
 
-describe("generateSummaryText", () => {
+describe("generateSummaryMarkdown", () => {
   test("produces a non-empty string", () => {
     const reports = {
       Button: createEmptyReport("Button"),
@@ -2027,14 +2123,14 @@ describe("generateSummaryText", () => {
     reports.Button.totalInstances = 10;
     reports.Button.totalImports = 5;
 
-    const text = generateSummaryText(reports);
+    const text = generateSummaryMarkdown(reports);
 
     expect(typeof text).toBe("string");
     expect(text.length).toBeGreaterThan(0);
   });
 
   test("includes title", () => {
-    const text = generateSummaryText({
+    const text = generateSummaryMarkdown({
       Button: createEmptyReport("Button"),
     });
 
@@ -2051,7 +2147,7 @@ describe("generateSummaryText", () => {
     reports.Card.totalInstances = 200;
     reports.Card.totalImports = 80;
 
-    const text = generateSummaryText(reports);
+    const text = generateSummaryMarkdown(reports);
 
     expect(text).toContain("Button");
     expect(text).toContain("Card");
@@ -2066,7 +2162,7 @@ describe("generateSummaryText", () => {
     recordProp(reports.Card, "padding", "4");
     recordProp(reports.Card, "tone", "'primary'");
 
-    const text = generateSummaryText(reports);
+    const text = generateSummaryMarkdown(reports);
 
     expect(text).toContain("padding");
     expect(text).toContain("tone");
@@ -2079,14 +2175,14 @@ describe("generateSummaryText", () => {
     reports.Spinner.totalInstances = 5;
     reports.Spinner.totalImports = 3;
 
-    const text = generateSummaryText(reports);
+    const text = generateSummaryMarkdown(reports);
 
     expect(text).toContain("Spinner");
     expect(text).toContain("*(no props used)*");
   });
 
   test("handles empty reports", () => {
-    const text = generateSummaryText({});
+    const text = generateSummaryMarkdown({});
 
     expect(text).toContain("**Components analysed:** 0");
     expect(text).toContain("**Total imports:** 0");
@@ -2103,7 +2199,7 @@ describe("generateSummaryText", () => {
     for (let i = 0; i < 10; i++)
       recordProp(reports.Button, "tone", "'primary'");
 
-    const text = generateSummaryText(reports);
+    const text = generateSummaryMarkdown(reports);
     // 20 prop usages / 10 instances = 2.00
     expect(text).toContain("**Avg props per instance:** 2.00");
   });
@@ -2125,7 +2221,7 @@ describe("generateSummaryText", () => {
     reports.Card.totalInstances = 20;
     for (let i = 0; i < 20; i++) recordProp(reports.Card, "padding", "4");
 
-    const text = generateSummaryText(reports);
+    const text = generateSummaryMarkdown(reports);
 
     expect(text).toContain("Components by Props per Instance");
     // Button (higher avg) should appear before Card
@@ -2142,7 +2238,7 @@ describe("generateSummaryText", () => {
     reports.Spinner.totalInstances = 2;
     recordProp(reports.Spinner, "size", "2");
 
-    const text = generateSummaryText(reports);
+    const text = generateSummaryMarkdown(reports);
 
     // With only 1 component below threshold, the section should not appear
     expect(text).not.toContain("Components by Props per Instance");
@@ -2280,7 +2376,7 @@ describe("Integration tests", () => {
     expect(parsed.totalComponents).toBe(5);
     expect(parsed.totalInstances).toBe(8);
 
-    const text = generateSummaryText(reports);
+    const text = generateSummaryMarkdown(reports);
     expect(text).toContain("Card");
     expect(text).toContain("padding");
     expect(text).toContain("tone");
@@ -2527,7 +2623,7 @@ describe("Edge cases", () => {
     const json = JSON.parse(generateSummaryJSON(reports));
     expect(json.totalInstances).toBe(0);
 
-    const text = generateSummaryText(reports);
+    const text = generateSummaryMarkdown(reports);
     expect(text).toContain("Button");
   });
 });

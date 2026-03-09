@@ -135,9 +135,9 @@ function reportDir(subdir) {
 
 /**
  * @typedef {object} ReportBundle
- * @property {string} text - Markdown report content.
- * @property {string} csv  - CSV report content.
- * @property {string} json - JSON report content.
+ * @property {string} markdown - Markdown report content.
+ * @property {string} csv      - CSV report content.
+ * @property {string} json     - JSON report content.
  */
 
 /**
@@ -164,7 +164,7 @@ function writeReports(subdir, baseName, reports) {
   const csvPath = path.join(dir, `${baseName}.csv`);
   const jsonPath = path.join(dir, `${baseName}.json`);
 
-  fs.writeFileSync(mdPath, reports.text);
+  fs.writeFileSync(mdPath, reports.markdown);
   fs.writeFileSync(csvPath, reports.csv);
   fs.writeFileSync(jsonPath, reports.json);
 

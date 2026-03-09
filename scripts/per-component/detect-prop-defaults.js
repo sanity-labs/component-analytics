@@ -388,7 +388,7 @@ function buildJsonOutput(results) {
  * @param {DetectedDefault[]} results
  * @returns {string}
  */
-function buildTextOutput(results) {
+function buildMarkdownOutput(results) {
   const lines = [];
 
   lines.push("# Detected Prop Defaults");
@@ -517,9 +517,9 @@ function main() {
   );
   console.log("\n✅ JSON report saved");
 
-  const textOutput = buildTextOutput(results);
+  const textOutput = buildMarkdownOutput(results);
   fs.writeFileSync(path.join(outDir, "detected-prop-defaults.md"), textOutput);
-  console.log("✅ Text report saved");
+  console.log("✅ Markdown report saved");
 
   // Print top findings to console
   console.log("\n" + "─".repeat(60));
@@ -558,5 +558,5 @@ module.exports = {
   // Report helpers
   loadComponentReport,
   buildJsonOutput,
-  buildTextOutput,
+  buildMarkdownOutput,
 };

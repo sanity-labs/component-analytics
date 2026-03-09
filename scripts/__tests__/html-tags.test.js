@@ -1,11 +1,13 @@
 const {
   extractHTMLTags,
+  extractHTMLTagInstances,
+  lineNumberAt,
   analyzeContent,
   aggregateResults,
   sortTagsByCount,
   getTagCategory,
   buildTagCategoryMap,
-  generateTextReport,
+  generateMarkdown,
   generateCSV,
   generateJSON,
   HTML_TAG_CATEGORIES,
@@ -217,6 +219,79 @@ describe("extractHTMLTags", () => {
 });
 
 // ---------------------------------------------------------------------------
+// extractHTMLTagInstances
+// ---------------------------------------------------------------------------
+describe("extractHTMLTagInstances", () => {
+  test("returns instances with tag name, line number, and source", () => {
+    const content = `export function App() {
+  return (
+    <div className="wrapper">
+      <span>hello</span>
+      <img src="foo.png" />
+    </div>
+  );
+}`;
+    const instances = extractHTMLTagInstances(content);
+
+    expect(instances.length).toBeGreaterThanOrEqual(3);
+
+    const div = instances.find((i) => i.tag === "div");
+    expect(div).toBeDefined();
+    expect(div.line).toBe(3);
+    expect(div.sourceCode).toContain("<div");
+
+    const span = instances.find((i) => i.tag === "span");
+    expect(span).toBeDefined();
+    expect(span.line).toBe(4);
+
+    const img = instances.find((i) => i.tag === "img");
+    expect(img).toBeDefined();
+    expect(img.line).toBe(5);
+    expect(img.sourceCode).toContain("<img");
+  });
+
+  test("filters out non-HTML tags", () => {
+    const content = "<MyComponent /><div /><NotATag />";
+    const instances = extractHTMLTagInstances(content);
+    const tags = instances.map((i) => i.tag);
+    expect(tags).toContain("div");
+    expect(tags).not.toContain("MyComponent");
+    expect(tags).not.toContain("NotATag");
+  });
+
+  test("returns empty array for content with no HTML tags", () => {
+    const content = "const x = 1;";
+    expect(extractHTMLTagInstances(content)).toEqual([]);
+  });
+
+  test("collapses multi-line tags into single-line sourceCode", () => {
+    const content = `<div
+  className="foo"
+  style={{padding: 4}}
+>content</div>`;
+    const instances = extractHTMLTagInstances(content);
+    const div = instances.find((i) => i.tag === "div");
+    expect(div.sourceCode).not.toContain("\n");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// lineNumberAt
+// ---------------------------------------------------------------------------
+describe("lineNumberAt", () => {
+  test("returns 1 for offset 0", () => {
+    expect(lineNumberAt("abc", 0)).toBe(1);
+  });
+
+  test("returns correct line for multi-line content", () => {
+    const content = "line1\nline2\nline3";
+    expect(lineNumberAt(content, 0)).toBe(1);
+    expect(lineNumberAt(content, 6)).toBe(2);
+    expect(lineNumberAt(content, 12)).toBe(3);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // analyzeContent
 // ---------------------------------------------------------------------------
 describe("analyzeContent", () => {
@@ -280,6 +355,29 @@ describe("analyzeContent", () => {
     const result = analyzeContent(content);
     expect(result.uniqueTags).toBe(2);
   });
+
+  test("returns instances array with position data", () => {
+    const content = `function App() {
+  return (
+    <div>
+      <span>hello</span>
+    </div>
+  );
+}`;
+    const result = analyzeContent(content);
+
+    expect(Array.isArray(result.instances)).toBe(true);
+    expect(result.instances.length).toBeGreaterThanOrEqual(2);
+
+    const div = result.instances.find((i) => i.tag === "div");
+    expect(div).toBeDefined();
+    expect(div.line).toBe(3);
+    expect(typeof div.sourceCode).toBe("string");
+
+    const span = result.instances.find((i) => i.tag === "span");
+    expect(span).toBeDefined();
+    expect(span.line).toBe(4);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -302,6 +400,58 @@ describe("aggregateResults", () => {
     expect(result.uniqueTags).toBe(4);
     expect(result.fileCount).toBe(2);
     expect(result.filesWithHTML).toBe(2);
+  });
+
+  test("collects per-tag references when filePaths and codebase provided", () => {
+    const fileResults = [
+      {
+        tags: { div: 1 },
+        totalTags: 1,
+        uniqueTags: 1,
+        instances: [{ tag: "div", line: 5, sourceCode: "<div>" }],
+      },
+      {
+        tags: { div: 1, span: 1 },
+        totalTags: 2,
+        uniqueTags: 2,
+        instances: [
+          { tag: "div", line: 10, sourceCode: '<div className="x">' },
+          { tag: "span", line: 11, sourceCode: "<span>" },
+        ],
+      },
+    ];
+
+    const result = aggregateResults(fileResults, {
+      filePaths: ["src/A.tsx", "src/B.tsx"],
+      codebase: "Studio",
+    });
+
+    // div has 2 references from 2 files
+    expect(result.references.div).toHaveLength(2);
+    expect(result.references.div[0]).toEqual({
+      file: "src/A.tsx",
+      line: 5,
+      codebase: "Studio",
+      sourceCode: "<div>",
+    });
+    expect(result.references.div[1]).toEqual({
+      file: "src/B.tsx",
+      line: 10,
+      codebase: "Studio",
+      sourceCode: '<div className="x">',
+    });
+
+    // span has 1 reference
+    expect(result.references.span).toHaveLength(1);
+    expect(result.references.span[0].file).toBe("src/B.tsx");
+    expect(result.references.span[0].line).toBe(11);
+  });
+
+  test("references map is empty when no filePaths provided", () => {
+    const fileResults = [{ tags: { div: 1 }, totalTags: 1, uniqueTags: 1 }];
+
+    const result = aggregateResults(fileResults);
+    expect(result.references).toEqual({});
   });
 
   test("handles empty file results array", () => {
@@ -360,6 +510,69 @@ describe("aggregateResults", () => {
     expect(result.tags.div).toBe(60);
     expect(result.totalInstances).toBe(60);
     expect(result.uniqueTags).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// generateJSON — per-tag references
+// ---------------------------------------------------------------------------
+describe("generateJSON — tag references", () => {
+  test("includes per-tag references in codebase JSON", () => {
+    const results = {
+      sanity: {
+        tags: { div: 2 },
+        totalInstances: 2,
+        uniqueTags: 1,
+        fileCount: 1,
+        filesWithHTML: 1,
+        references: {
+          div: [
+            {
+              file: "src/A.tsx",
+              line: 3,
+              codebase: "sanity",
+              sourceCode: "<div>",
+            },
+            {
+              file: "src/A.tsx",
+              line: 7,
+              codebase: "sanity",
+              sourceCode: '<div className="x">',
+            },
+          ],
+        },
+      },
+    };
+
+    const parsed = JSON.parse(generateJSON(results));
+    const sanity = parsed.codebases.sanity;
+
+    expect(sanity.tags).toBeDefined();
+    expect(sanity.tags.div).toBeDefined();
+    expect(sanity.tags.div.count).toBe(2);
+    expect(sanity.tags.div.references).toHaveLength(2);
+    expect(sanity.tags.div.references[0]).toEqual({
+      file: "src/A.tsx",
+      line: 3,
+      codebase: "sanity",
+      sourceCode: "<div>",
+    });
+  });
+
+  test("tags with no references get empty array", () => {
+    const results = {
+      sanity: {
+        tags: { div: 1 },
+        totalInstances: 1,
+        uniqueTags: 1,
+        fileCount: 1,
+        filesWithHTML: 1,
+        // no references field
+      },
+    };
+
+    const parsed = JSON.parse(generateJSON(results));
+    expect(parsed.codebases.sanity.tags.div.references).toEqual([]);
   });
 });
 
@@ -509,9 +722,9 @@ describe("HTML_TAG_CATEGORIES", () => {
 });
 
 // ---------------------------------------------------------------------------
-// generateTextReport
+// generateMarkdown
 // ---------------------------------------------------------------------------
-describe("generateTextReport", () => {
+describe("generateMarkdown", () => {
   test("generates a non-empty string", () => {
     const results = {
       sanity: {
@@ -522,7 +735,7 @@ describe("generateTextReport", () => {
         filesWithHTML: 8,
       },
     };
-    const report = generateTextReport(results);
+    const report = generateMarkdown(results);
     expect(typeof report).toBe("string");
     expect(report.length).toBeGreaterThan(0);
   });
@@ -537,7 +750,7 @@ describe("generateTextReport", () => {
         filesWithHTML: 3,
       },
     };
-    const report = generateTextReport(results);
+    const report = generateMarkdown(results);
     expect(report).toContain("## sanity");
   });
 
@@ -558,7 +771,7 @@ describe("generateTextReport", () => {
         filesWithHTML: 2,
       },
     };
-    const report = generateTextReport(results);
+    const report = generateMarkdown(results);
     expect(report).toContain("Aggregate");
     expect(report).toContain("All Codebases Combined");
   });
@@ -573,7 +786,7 @@ describe("generateTextReport", () => {
         filesWithHTML: 80,
       },
     };
-    const report = generateTextReport(results);
+    const report = generateMarkdown(results);
     expect(report).toContain("100");
     expect(report).toContain("80");
     expect(report).toContain("59");
@@ -590,14 +803,14 @@ describe("generateTextReport", () => {
       },
       canvas: null,
     };
-    const report = generateTextReport(results);
+    const report = generateMarkdown(results);
     expect(report).toContain("## sanity");
     expect(report).not.toContain("## canvas");
   });
 
   test("handles all codebases being null", () => {
     const results = { sanity: null, canvas: null };
-    const report = generateTextReport(results);
+    const report = generateMarkdown(results);
     expect(typeof report).toBe("string");
     expect(report).toContain("Aggregate");
   });
@@ -612,7 +825,7 @@ describe("generateTextReport", () => {
         filesWithHTML: 0,
       },
     };
-    const report = generateTextReport(results);
+    const report = generateMarkdown(results);
     expect(report).toContain("0");
   });
 });
@@ -997,7 +1210,7 @@ describe("Integration tests", () => {
       },
     };
 
-    const text = generateTextReport(results);
+    const text = generateMarkdown(results);
     expect(text).toContain("sanity");
     expect(text).toContain("canvas");
     expect(text).toContain("div");

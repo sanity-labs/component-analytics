@@ -110,7 +110,7 @@ perComponent.analyzeFileContent(source, ctx);
 perComponent.buildTrackedUIImportMap(source, ctx);
 perComponent.createEmptyReport("Button", ctx);
 perComponent.generateSummaryCSV(reports, ctx);
-perComponent.generateSummaryText(reports, ctx);
+perComponent.generateSummaryMarkdown(reports, ctx);
 
 // Pure utilities — no context needed
 perComponent.parseProps('mode="ghost"');

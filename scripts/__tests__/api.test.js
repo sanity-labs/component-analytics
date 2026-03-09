@@ -362,10 +362,10 @@ describe("perComponent — pure utilities", () => {
   });
 
   test("classifyValue classifies objects", () => {
-    expect(perComponent.classifyValue('{color: "red"}')).toBe(
-      '{color: "red"}',
+    expect(perComponent.classifyValue('{color: "red"}')).toBe('{color: "red"}');
+    expect(perComponent.classifyValue("{color: myVar}")).toBe(
+      "<unwound>{color: <variable:myVar>}",
     );
-    expect(perComponent.classifyValue("{color: myVar}")).toBe("<object>");
   });
 
   test("classifyValue classifies dynamic values", () => {
@@ -404,9 +404,7 @@ describe("perComponent — pure utilities", () => {
   });
 
   test("extractImports parses import statements", () => {
-    const result = perComponent.extractImports(
-      "import { A, B } from 'pkg';",
-    );
+    const result = perComponent.extractImports("import { A, B } from 'pkg';");
     expect(result).toHaveLength(1);
     expect(result[0].source).toBe("pkg");
     expect(result[0].namedImports).toContain("A");
@@ -507,10 +505,7 @@ describe("perComponent — context-aware", () => {
   });
 
   test("buildTrackedUIImportMap ignores excluded sources", () => {
-    const map = perComponent.buildTrackedUIImportMap(
-      EXCLUDED_SOURCE_FILE,
-      ctx,
-    );
+    const map = perComponent.buildTrackedUIImportMap(EXCLUDED_SOURCE_FILE, ctx);
     expect(map).toEqual({});
   });
 
@@ -627,9 +622,9 @@ describe("perComponent — context-aware", () => {
     expect(csv).toContain("Button");
   });
 
-  test("generateSummaryText uses library name from context", () => {
+  test("generateSummaryMarkdown uses library name from context", () => {
     const reports = {};
-    const text = perComponent.generateSummaryText(reports, ctx);
+    const text = perComponent.generateSummaryMarkdown(reports, ctx);
     expect(text).toContain("My UI & My Icons");
   });
 });
@@ -712,7 +707,7 @@ describe("full pipeline with context", () => {
     expect(csv).toContain("App Imports");
     expect(csv).toContain("Lib Imports");
 
-    const text = perComponent.generateSummaryText(reports, ctx);
+    const text = perComponent.generateSummaryMarkdown(reports, ctx);
     expect(text).toContain("My UI & My Icons");
     expect(text).toContain("Button");
 
@@ -977,7 +972,7 @@ describe("data collection / report generation separation", () => {
     expect(roundTripped).toEqual(json);
   });
 
-  test("generateSummaryCSV and generateSummaryText return strings", () => {
+  test("generateSummaryCSV and generateSummaryMarkdown return strings", () => {
     const reports = {
       Button: perComponent.createEmptyReport("Button", ctx),
     };
@@ -988,7 +983,7 @@ describe("data collection / report generation separation", () => {
     expect(typeof csv).toBe("string");
     expect(csv.split("\n").length).toBeGreaterThan(1);
 
-    const text = perComponent.generateSummaryText(reports, ctx);
+    const text = perComponent.generateSummaryMarkdown(reports, ctx);
     expect(typeof text).toBe("string");
     expect(text).toContain("Button");
 

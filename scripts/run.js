@@ -86,7 +86,7 @@ function runScannerForAll(scanType) {
 const STEPS = {
   /**
    * React Scanner — run for each codebase × scan type, then post-process
-   * the JSON output into CSV/TXT reports.
+   * the JSON output into CSV/Markdown reports.
    */
   scan() {
     console.log("\n" + "═".repeat(60));
