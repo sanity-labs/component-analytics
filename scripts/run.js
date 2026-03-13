@@ -156,6 +156,7 @@ const STEPS = {
     console.log("═".repeat(60));
     runScript("per-component/analyze-per-component.js");
     runScript("per-component/detect-prop-defaults.js");
+    runScript("versions/analyze-versions.js");
   },
 
   /**

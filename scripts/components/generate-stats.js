@@ -1,7 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 
-const { CODEBASES } = require("../lib/constants");
+const { CODEBASES, UI_LIBRARY_NAMES } = require("../lib/constants");
 
 function generateStats(codebase) {
   const inputPath = `reports/codebases/${codebase}/all-components/all-components.json`;
@@ -67,8 +67,75 @@ function generateStats(codebase) {
   );
   lines.push("");
 
-  // Top 20 Most Used Components
-  lines.push("## Top 20 Most Used Components");
+  // ── Tracked UI Library Breakdown ──────────────────────────────────────
+  // Read the sources report JSON to get per-codebase tracked UI library data
+  const sourcesReportPath = path.resolve(
+    __dirname,
+    "../../reports/sources/report.json",
+  );
+  if (fs.existsSync(sourcesReportPath)) {
+    try {
+      const sourcesData = JSON.parse(
+        fs.readFileSync(sourcesReportPath, "utf8"),
+      );
+      const cbData = sourcesData.codebases && sourcesData.codebases[codebase];
+
+      if (cbData && cbData.libraries) {
+        lines.push(`## ${UI_LIBRARY_NAMES} — Tracked Library Usage`);
+        lines.push("");
+
+        // Per-library summary
+        for (const [libName, libData] of Object.entries(cbData.libraries)) {
+          const libComponents = libData.components
+            ? Object.entries(libData.components).sort((a, b) => b[1] - a[1])
+            : [];
+
+          lines.push(`### ${libName}`);
+          lines.push("");
+          lines.push(
+            `- **Components used:** ${libData.uniqueComponents || libComponents.length}`,
+          );
+          lines.push(
+            `- **Total instances:** ${(libData.instances || 0).toLocaleString()}`,
+          );
+          lines.push("");
+
+          if (libComponents.length > 0) {
+            lines.push("| Rank | Component | Instances |");
+            lines.push("| ---: | --- | ---: |");
+            libComponents.slice(0, 20).forEach(([comp, count], index) => {
+              lines.push(`| ${index + 1} | ${comp} | ${count} |`);
+            });
+            lines.push("");
+          }
+        }
+
+        // Overall tracked library stats
+        const totalTracked = Object.values(cbData.libraries).reduce(
+          (sum, lib) => sum + (lib.instances || 0),
+          0,
+        );
+        const totalAll = cbData.total
+          ? cbData.total.instances || 0
+          : totalInstances;
+        const pct =
+          totalAll > 0 ? ((totalTracked / totalAll) * 100).toFixed(1) : "0.0";
+        lines.push(
+          `> **${UI_LIBRARY_NAMES}** accounts for **${totalTracked.toLocaleString()}** of **${totalAll.toLocaleString()}** total JSX instances (**${pct}%**) in this codebase.`,
+        );
+        lines.push("");
+      }
+    } catch {
+      // Sources report not available or malformed — skip library section
+    }
+  }
+
+  // ── All Components (any source) ───────────────────────────────────────
+  lines.push("## Top 20 Most Used Components (All Sources)");
+  lines.push("");
+  lines.push(
+    "*Includes all components regardless of source — tracked UI library, internal wrappers, third-party libraries, and native HTML elements.*",
+  );
   lines.push("");
   lines.push(
     "| Rank | Component Name | Instances | Unique Props | Avg Props/Use |",

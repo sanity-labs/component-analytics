@@ -1,4 +1,4 @@
-const { UI_LIBRARY_NAMES } = require("../lib/constants");
+const { UI_LIBRARY_NAMES, TRACKED_COMPONENTS } = require("../lib/constants");
 const {
   lineNumberAt,
   extractImports,
@@ -317,11 +317,20 @@ describe("buildTrackedUIImportMap", () => {
     expect(buildTrackedUIImportMap("").components).toEqual({});
   });
 
-  test("only includes components in the TRACKED_COMPONENTS list", () => {
-    // "SomethingRandom" is PascalCase but not in the list
+  test("includes all PascalCase imports when TRACKED_COMPONENTS is empty (track-all mode)", () => {
+    // When the config has no explicit components list, everything
+    // PascalCase from a tracked source is included.
     const content = `import { Button, SomethingRandom } from '@sanity/ui'`;
     const { components: map } = buildTrackedUIImportMap(content);
-    expect(map).toEqual({ Button: "Button" });
+    if (TRACKED_COMPONENTS.length === 0) {
+      // Track-all mode: both are included
+      expect(map.Button).toBe("Button");
+      expect(map.SomethingRandom).toBe("SomethingRandom");
+    } else {
+      // Explicit list mode: only listed components are included
+      expect(map.Button).toBe("Button");
+      expect(map.SomethingRandom).toBeUndefined();
+    }
   });
 });
 
@@ -1039,18 +1048,20 @@ describe("analyzeFileContent", () => {
 describe("createEmptyReport", () => {
   test("creates a report with all fields zeroed", () => {
     const report = createEmptyReport("Button");
-    expect(report).toEqual({
-      component: "Button",
-      library: "Sanity UI",
-      totalImports: 0,
-      totalInstances: 0,
-      instancesWithChildren: 0,
-      props: {},
-      codebaseImports: {},
-      codebaseInstances: {},
-      references: [],
-      totalDefaultUsages: 0,
-    });
+    expect(report.component).toBe("Button");
+    // library may be null in track-all mode (no explicit components list)
+    // or a string when the config lists components explicitly
+    expect(report.library === null || typeof report.library === "string").toBe(
+      true,
+    );
+    expect(report.totalImports).toBe(0);
+    expect(report.totalInstances).toBe(0);
+    expect(report.instancesWithChildren).toBe(0);
+    expect(report.props).toEqual({});
+    expect(report.codebaseImports).toEqual({});
+    expect(report.codebaseInstances).toEqual({});
+    expect(report.references).toEqual([]);
+    expect(report.totalDefaultUsages).toBe(0);
   });
 
   test("uses the provided component name", () => {

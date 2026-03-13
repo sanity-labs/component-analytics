@@ -35,6 +35,7 @@ const {
   UI_LIBRARY_NAMES,
   isTrackedUISource,
   identifyComponentLibrary,
+  identifyLibrary,
 } = require("../lib/constants");
 const {
   detectPropDefault,
@@ -163,7 +164,11 @@ function buildTrackedUIImportMap(content, ctx) {
     if (!_isTrackedUISource(imp.source)) continue;
 
     for (const { original, local } of parseNamedImports(imp.namedImports)) {
-      if (_trackedComponents.includes(original)) {
+      // When trackedComponents is empty, track every PascalCase import
+      // from a tracked source (i.e. the config didn't list specific
+      // components, meaning "track all").
+      const trackAll = _trackedComponents.length === 0;
+      if (trackAll || _trackedComponents.includes(original)) {
         components[local] = original;
         sources[local] = imp.source;
       }
@@ -785,6 +790,24 @@ function mergeFileResult(
     if (!reports[original]) {
       reports[original] = createEmptyReport(original);
     }
+
+    // When the component list is empty (track-all mode),
+    // identifyComponentLibrary returns null because the component isn't
+    // in any library's explicit list.  Fall back to identifyLibrary
+    // using the import source path from the file's sourceMap.
+    if (reports[original].library === null && fileResult.sourceMap) {
+      const _identifyLibrary = identifyLibrary;
+      for (const [local, orig] of Object.entries(fileResult.importMap)) {
+        if (orig === original && fileResult.sourceMap[local]) {
+          const libName = _identifyLibrary(fileResult.sourceMap[local]);
+          if (libName) {
+            reports[original].library = libName;
+            break;
+          }
+        }
+      }
+    }
+
     reports[original].totalImports++;
     incr(reports[original].codebaseImports, codebase);
   }

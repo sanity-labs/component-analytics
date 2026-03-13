@@ -55,77 +55,107 @@ describe("lib/constants", () => {
   });
 
   describe("TRACKED_COMPONENTS", () => {
-    test("is a non-empty array of strings", () => {
+    test("is an array of strings", () => {
       expect(Array.isArray(TRACKED_COMPONENTS)).toBe(true);
-      expect(TRACKED_COMPONENTS.length).toBeGreaterThan(0);
+      // May be empty in track-all mode (no explicit components in config)
       for (const comp of TRACKED_COMPONENTS) {
         expect(typeof comp).toBe("string");
       }
     });
 
-    test("all entries are PascalCase", () => {
-      for (const comp of TRACKED_COMPONENTS) {
-        expect(comp[0]).toBe(comp[0].toUpperCase());
-      }
-    });
+    // When the config lists components explicitly, these tests verify
+    // the expected names are present.  When the config omits the
+    // components list (track-all mode), TRACKED_COMPONENTS is empty
+    // and all PascalCase imports are tracked automatically — skip.
+    const hasExplicitComponents = TRACKED_COMPONENTS.length > 0;
 
-    test("includes core layout components", () => {
-      expect(TRACKED_COMPONENTS).toContain("Box");
-      expect(TRACKED_COMPONENTS).toContain("Flex");
-      expect(TRACKED_COMPONENTS).toContain("Grid");
-      expect(TRACKED_COMPONENTS).toContain("Stack");
-      expect(TRACKED_COMPONENTS).toContain("Inline");
-      expect(TRACKED_COMPONENTS).toContain("Container");
-    });
+    (hasExplicitComponents ? test : test.skip)(
+      "all entries are PascalCase",
+      () => {
+        for (const comp of TRACKED_COMPONENTS) {
+          expect(comp[0]).toBe(comp[0].toUpperCase());
+        }
+      },
+    );
 
-    test("includes interactive components", () => {
-      expect(TRACKED_COMPONENTS).toContain("Button");
-      expect(TRACKED_COMPONENTS).toContain("Card");
-      expect(TRACKED_COMPONENTS).toContain("Dialog");
-      expect(TRACKED_COMPONENTS).toContain("Menu");
-      expect(TRACKED_COMPONENTS).toContain("MenuItem");
-      expect(TRACKED_COMPONENTS).toContain("Popover");
-      expect(TRACKED_COMPONENTS).toContain("Tooltip");
-    });
+    (hasExplicitComponents ? test : test.skip)(
+      "includes core layout components",
+      () => {
+        expect(TRACKED_COMPONENTS).toContain("Box");
+        expect(TRACKED_COMPONENTS).toContain("Flex");
+        expect(TRACKED_COMPONENTS).toContain("Grid");
+        expect(TRACKED_COMPONENTS).toContain("Stack");
+        expect(TRACKED_COMPONENTS).toContain("Inline");
+        expect(TRACKED_COMPONENTS).toContain("Container");
+      },
+    );
 
-    test("includes typography components", () => {
-      expect(TRACKED_COMPONENTS).toContain("Text");
-      expect(TRACKED_COMPONENTS).toContain("Heading");
-      expect(TRACKED_COMPONENTS).toContain("Code");
-      expect(TRACKED_COMPONENTS).toContain("Badge");
-      expect(TRACKED_COMPONENTS).toContain("KBD");
-    });
+    (hasExplicitComponents ? test : test.skip)(
+      "includes interactive components",
+      () => {
+        expect(TRACKED_COMPONENTS).toContain("Button");
+        expect(TRACKED_COMPONENTS).toContain("Card");
+        expect(TRACKED_COMPONENTS).toContain("Dialog");
+        expect(TRACKED_COMPONENTS).toContain("Menu");
+        expect(TRACKED_COMPONENTS).toContain("MenuItem");
+        expect(TRACKED_COMPONENTS).toContain("Popover");
+        expect(TRACKED_COMPONENTS).toContain("Tooltip");
+      },
+    );
 
-    test("includes form components", () => {
-      expect(TRACKED_COMPONENTS).toContain("TextInput");
-      expect(TRACKED_COMPONENTS).toContain("TextArea");
-      expect(TRACKED_COMPONENTS).toContain("Checkbox");
-      expect(TRACKED_COMPONENTS).toContain("Select");
-      expect(TRACKED_COMPONENTS).toContain("Switch");
-      expect(TRACKED_COMPONENTS).toContain("Radio");
-      expect(TRACKED_COMPONENTS).toContain("Autocomplete");
-      expect(TRACKED_COMPONENTS).toContain("Label");
-    });
+    (hasExplicitComponents ? test : test.skip)(
+      "includes typography components",
+      () => {
+        expect(TRACKED_COMPONENTS).toContain("Text");
+        expect(TRACKED_COMPONENTS).toContain("Heading");
+        expect(TRACKED_COMPONENTS).toContain("Code");
+        expect(TRACKED_COMPONENTS).toContain("Badge");
+        expect(TRACKED_COMPONENTS).toContain("KBD");
+      },
+    );
 
-    test("includes feedback components", () => {
-      expect(TRACKED_COMPONENTS).toContain("Spinner");
-      expect(TRACKED_COMPONENTS).toContain("Toast");
-    });
+    (hasExplicitComponents ? test : test.skip)(
+      "includes form components",
+      () => {
+        expect(TRACKED_COMPONENTS).toContain("TextInput");
+        expect(TRACKED_COMPONENTS).toContain("TextArea");
+        expect(TRACKED_COMPONENTS).toContain("Checkbox");
+        expect(TRACKED_COMPONENTS).toContain("Select");
+        expect(TRACKED_COMPONENTS).toContain("Switch");
+        expect(TRACKED_COMPONENTS).toContain("Radio");
+        expect(TRACKED_COMPONENTS).toContain("Autocomplete");
+        expect(TRACKED_COMPONENTS).toContain("Label");
+      },
+    );
 
-    test("includes data display components", () => {
-      expect(TRACKED_COMPONENTS).toContain("Avatar");
-      expect(TRACKED_COMPONENTS).toContain("AvatarStack");
-      expect(TRACKED_COMPONENTS).toContain("Skeleton");
-      expect(TRACKED_COMPONENTS).toContain("TextSkeleton");
-    });
+    (hasExplicitComponents ? test : test.skip)(
+      "includes feedback components",
+      () => {
+        expect(TRACKED_COMPONENTS).toContain("Spinner");
+        expect(TRACKED_COMPONENTS).toContain("Toast");
+      },
+    );
 
-    test("includes utility/provider components", () => {
-      expect(TRACKED_COMPONENTS).toContain("Portal");
-      expect(TRACKED_COMPONENTS).toContain("Layer");
-      expect(TRACKED_COMPONENTS).toContain("ThemeProvider");
-      expect(TRACKED_COMPONENTS).toContain("LayerProvider");
-      expect(TRACKED_COMPONENTS).toContain("ErrorBoundary");
-    });
+    (hasExplicitComponents ? test : test.skip)(
+      "includes data display components",
+      () => {
+        expect(TRACKED_COMPONENTS).toContain("Avatar");
+        expect(TRACKED_COMPONENTS).toContain("AvatarStack");
+        expect(TRACKED_COMPONENTS).toContain("Skeleton");
+        expect(TRACKED_COMPONENTS).toContain("TextSkeleton");
+      },
+    );
+
+    (hasExplicitComponents ? test : test.skip)(
+      "includes utility/provider components",
+      () => {
+        expect(TRACKED_COMPONENTS).toContain("Portal");
+        expect(TRACKED_COMPONENTS).toContain("Layer");
+        expect(TRACKED_COMPONENTS).toContain("ThemeProvider");
+        expect(TRACKED_COMPONENTS).toContain("LayerProvider");
+        expect(TRACKED_COMPONENTS).toContain("ErrorBoundary");
+      },
+    );
 
     test("has no duplicates", () => {
       const unique = new Set(TRACKED_COMPONENTS);
@@ -755,15 +785,18 @@ describe("Cross-module integration", () => {
     expect(sorted[0][0]).toBe("div");
   });
 
-  test("TRACKED_COMPONENTS can be joined into a regex pattern", () => {
-    const pattern = TRACKED_COMPONENTS.join("|");
-    const regex = new RegExp(`<(${pattern})\\b`);
+  (TRACKED_COMPONENTS.length > 0 ? test : test.skip)(
+    "TRACKED_COMPONENTS can be joined into a regex pattern",
+    () => {
+      const pattern = TRACKED_COMPONENTS.join("|");
+      const regex = new RegExp(`<(${pattern})\\b`);
 
-    expect(regex.test("<Card padding={2}>")).toBe(true);
-    expect(regex.test("<Box>")).toBe(true);
-    expect(regex.test("<div>")).toBe(false);
-    expect(regex.test("<CustomWidget>")).toBe(false);
-  });
+      expect(regex.test("<Card padding={2}>")).toBe(true);
+      expect(regex.test("<Box>")).toBe(true);
+      expect(regex.test("<div>")).toBe(false);
+      expect(regex.test("<CustomWidget>")).toBe(false);
+    },
+  );
 
   test("CODEBASES can be iterated to build a results map", () => {
     const results = {};

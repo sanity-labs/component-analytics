@@ -43,7 +43,13 @@ const {
 let _cachedPattern = null;
 function componentPattern() {
   if (!_cachedPattern) {
-    _cachedPattern = TRACKED_COMPONENTS.join("|");
+    // When TRACKED_COMPONENTS is empty (track-all mode), match any
+    // PascalCase identifier — the same heuristic used by
+    // buildTrackedUIImportMap to accept all imports from tracked sources.
+    _cachedPattern =
+      TRACKED_COMPONENTS.length > 0
+        ? TRACKED_COMPONENTS.join("|")
+        : "[A-Z][a-zA-Z0-9]+";
   }
   return _cachedPattern;
 }

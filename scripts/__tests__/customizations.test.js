@@ -18,41 +18,54 @@ const {
 // TRACKED_COMPONENTS constant
 // ---------------------------------------------------------------------------
 describe("TRACKED_COMPONENTS", () => {
-  test("is a non-empty array of strings", () => {
+  // When the config omits the components list (track-all mode),
+  // TRACKED_COMPONENTS is empty and all PascalCase imports from
+  // tracked sources are tracked automatically.
+  const hasExplicitComponents = TRACKED_COMPONENTS.length > 0;
+
+  test("is an array of strings", () => {
     expect(Array.isArray(TRACKED_COMPONENTS)).toBe(true);
-    expect(TRACKED_COMPONENTS.length).toBeGreaterThan(0);
     for (const comp of TRACKED_COMPONENTS) {
       expect(typeof comp).toBe("string");
     }
   });
 
-  test("includes core layout components", () => {
-    expect(TRACKED_COMPONENTS).toContain("Box");
-    expect(TRACKED_COMPONENTS).toContain("Flex");
-    expect(TRACKED_COMPONENTS).toContain("Grid");
-    expect(TRACKED_COMPONENTS).toContain("Stack");
-    expect(TRACKED_COMPONENTS).toContain("Inline");
-    expect(TRACKED_COMPONENTS).toContain("Container");
-  });
+  (hasExplicitComponents ? test : test.skip)(
+    "includes core layout components",
+    () => {
+      expect(TRACKED_COMPONENTS).toContain("Box");
+      expect(TRACKED_COMPONENTS).toContain("Flex");
+      expect(TRACKED_COMPONENTS).toContain("Grid");
+      expect(TRACKED_COMPONENTS).toContain("Stack");
+      expect(TRACKED_COMPONENTS).toContain("Inline");
+      expect(TRACKED_COMPONENTS).toContain("Container");
+    },
+  );
 
-  test("includes interactive components", () => {
-    expect(TRACKED_COMPONENTS).toContain("Button");
-    expect(TRACKED_COMPONENTS).toContain("Card");
-    expect(TRACKED_COMPONENTS).toContain("Dialog");
-    expect(TRACKED_COMPONENTS).toContain("Menu");
-    expect(TRACKED_COMPONENTS).toContain("MenuItem");
-    expect(TRACKED_COMPONENTS).toContain("Popover");
-    expect(TRACKED_COMPONENTS).toContain("Tooltip");
-  });
+  (hasExplicitComponents ? test : test.skip)(
+    "includes interactive components",
+    () => {
+      expect(TRACKED_COMPONENTS).toContain("Button");
+      expect(TRACKED_COMPONENTS).toContain("Card");
+      expect(TRACKED_COMPONENTS).toContain("Dialog");
+      expect(TRACKED_COMPONENTS).toContain("Menu");
+      expect(TRACKED_COMPONENTS).toContain("MenuItem");
+      expect(TRACKED_COMPONENTS).toContain("Popover");
+      expect(TRACKED_COMPONENTS).toContain("Tooltip");
+    },
+  );
 
-  test("includes typography components", () => {
-    expect(TRACKED_COMPONENTS).toContain("Text");
-    expect(TRACKED_COMPONENTS).toContain("Heading");
-    expect(TRACKED_COMPONENTS).toContain("Code");
-    expect(TRACKED_COMPONENTS).toContain("Badge");
-  });
+  (hasExplicitComponents ? test : test.skip)(
+    "includes typography components",
+    () => {
+      expect(TRACKED_COMPONENTS).toContain("Text");
+      expect(TRACKED_COMPONENTS).toContain("Heading");
+      expect(TRACKED_COMPONENTS).toContain("Code");
+      expect(TRACKED_COMPONENTS).toContain("Badge");
+    },
+  );
 
-  test("includes form components", () => {
+  (hasExplicitComponents ? test : test.skip)("includes form components", () => {
     expect(TRACKED_COMPONENTS).toContain("TextInput");
     expect(TRACKED_COMPONENTS).toContain("TextArea");
     expect(TRACKED_COMPONENTS).toContain("Checkbox");
@@ -160,7 +173,7 @@ describe("extractInlineStyles", () => {
     expect(result.some((r) => r.component === "TextInput")).toBe(true);
   });
 
-  test("ignores non-tracked UI library components", () => {
+  (TRACKED_COMPONENTS.length > 0 ? test : test.skip)("ignores non-tracked UI library components", () => {
     const content =
       '<CustomComponent style={{color: "red"}}>text</CustomComponent>';
     const result = extractInlineStyles(content);
@@ -356,7 +369,7 @@ describe("extractStyledUsages", () => {
     expect(result[0].variableName).toBe("Root");
   });
 
-  test("ignores styled() wrapping non-tracked UI library components", () => {
+  (TRACKED_COMPONENTS.length > 0 ? test : test.skip)("ignores styled() wrapping non-tracked UI library components", () => {
     const content = `
       const StyledDiv = styled(MyCustomComponent)\`
         color: red;
@@ -677,7 +690,7 @@ describe("analyzeContent", () => {
     expect(cardStyled[0].properties).toContain("overflow");
   });
 
-  test("handles mixed tracked UI library and non-tracked UI library styles", () => {
+  (TRACKED_COMPONENTS.length > 0 ? test : test.skip)("handles mixed tracked UI library and non-tracked UI library styles", () => {
     const content = `
       <Card style={{padding: 4}}>content</Card>
       <div style={{color: "red"}}>html element</div>
