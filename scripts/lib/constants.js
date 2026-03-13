@@ -38,11 +38,25 @@ const { createContext, HTML_TAG_CATEGORIES, KNOWN_TAGS } = require("./context");
  * Walks up from `__dirname` (which is `scripts/lib/`) looking for
  * `component-analytics.config.js`.  Returns `null` if not found.
  *
+ * When running inside Jest (detected via `JEST_WORKER_ID`), the test
+ * config `component-analytics.config.test.js` is preferred if it
+ * exists.  This ensures tests are deterministic regardless of the
+ * user's real config.
+ *
  * @returns {string | null}
  */
 function findConfigPath() {
+  const isTest = typeof process.env.JEST_WORKER_ID !== "undefined";
   let dir = path.resolve(__dirname, "../..");
   for (let i = 0; i < 5; i++) {
+    // In test environments, prefer the test config
+    if (isTest) {
+      const testCandidate = path.join(
+        dir,
+        "component-analytics.config.test.js",
+      );
+      if (fs.existsSync(testCandidate)) return testCandidate;
+    }
     const candidate = path.join(dir, "component-analytics.config.js");
     if (fs.existsSync(candidate)) return candidate;
     const parent = path.dirname(dir);
