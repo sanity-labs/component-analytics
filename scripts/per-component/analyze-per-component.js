@@ -132,11 +132,22 @@ function parseNamedImports(namedImportsStr) {
 }
 
 /**
- * Build a map of `{ localName → originalName }` for every tracked UI library
- * component imported in a file.
+ * @typedef {object} TrackedImportMap
+ * @property {Object<string, string>} components - local JSX name → original tracked UI library export name.
+ * @property {Object<string, string>} sources    - local JSX name → import source path (e.g. "@sanity/ui").
+ */
+
+/**
+ * Build a map of tracked UI library components imported in a file.
+ *
+ * Returns both the component name mapping and the import source path
+ * for each local name.  The source path is used downstream to resolve
+ * the package version from the nearest `package.json`.
  *
  * @param {string} content - File content.
- * @returns {Object<string, string>} local JSX name → original tracked UI library export name.
+ * @param {import("../lib/context").AnalysisContext} [ctx] - Analysis context.
+ *   Falls back to the module-scoped constants when omitted (CLI path).
+ * @returns {TrackedImportMap}
  */
 function buildTrackedUIImportMap(content, ctx) {
   const _isTrackedUISource = ctx ? ctx.isTrackedUISource : isTrackedUISource;
@@ -144,19 +155,22 @@ function buildTrackedUIImportMap(content, ctx) {
 
   const imports = extractImports(content);
   /** @type {Object<string, string>} */
-  const map = {};
+  const components = {};
+  /** @type {Object<string, string>} */
+  const sources = {};
 
   for (const imp of imports) {
     if (!_isTrackedUISource(imp.source)) continue;
 
     for (const { original, local } of parseNamedImports(imp.namedImports)) {
       if (_trackedComponents.includes(original)) {
-        map[local] = original;
+        components[local] = original;
+        sources[local] = imp.source;
       }
     }
   }
 
-  return map;
+  return { components, sources };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -537,6 +551,7 @@ function normalizeValue(classified) {
 /**
  * @typedef {object} FileResult
  * @property {Object<string, string>}  importMap  - local → original for tracked UI library imports.
+ * @property {Object<string, string>}  sourceMap  - local → import source path (e.g. "@sanity/ui").
  * @property {ComponentInstance[]}      instances  - Every tracked UI library JSX instance.
  */
 
@@ -548,11 +563,14 @@ function normalizeValue(classified) {
  * @returns {FileResult}
  */
 function analyzeFileContent(content, ctx) {
-  const importMap = buildTrackedUIImportMap(content, ctx);
+  const { components: importMap, sources: sourceMap } = buildTrackedUIImportMap(
+    content,
+    ctx,
+  );
   const localNames = Object.keys(importMap);
 
   if (localNames.length === 0) {
-    return { importMap, instances: [] };
+    return { importMap, sourceMap, instances: [] };
   }
 
   /** @type {ComponentInstance[]} */
@@ -586,7 +604,7 @@ function analyzeFileContent(content, ctx) {
     });
   }
 
-  return { importMap, instances };
+  return { importMap, sourceMap, instances };
 }
 
 /**
@@ -614,10 +632,11 @@ function escapeRegex(s) {
 
 /**
  * @typedef {object} InstanceReference
- * @property {string} file       - File path relative to the codebase root.
- * @property {number} line       - 1-based line number.
- * @property {string} codebase   - Which codebase the file belongs to.
- * @property {string} sourceCode - The JSX opening tag source, collapsed to a single line.
+ * @property {string}      file           - File path relative to the codebase root.
+ * @property {number}      line           - 1-based line number.
+ * @property {string}      codebase       - Which codebase the file belongs to.
+ * @property {string}      sourceCode     - The JSX opening tag source, collapsed to a single line.
+ * @property {string|null} packageVersion - Declared version of the import source package, or null.
  */
 
 /**
@@ -752,7 +771,14 @@ function extractSourceSnippet(content, startOffset, endOffset) {
  * @param {string}                          [content]  - Full file content.  When provided, each
  *   reference will include a `sourceCode` snippet of the JSX opening tag.
  */
-function mergeFileResult(reports, fileResult, codebase, filePath, content) {
+function mergeFileResult(
+  reports,
+  fileResult,
+  codebase,
+  filePath,
+  content,
+  absoluteFilePath,
+) {
   // Track imports: each original component imported in this file = +1 import
   const importedOriginals = new Set(Object.values(fileResult.importMap));
   for (const original of importedOriginals) {
@@ -773,8 +799,24 @@ function mergeFileResult(reports, fileResult, codebase, filePath, content) {
     incr(report.codebaseInstances, codebase);
 
     if (filePath) {
+      // Resolve the package version for this instance's import source
+      let packageVersion = null;
+      if (absoluteFilePath && fileResult.sourceMap) {
+        // Find the local name that maps to this component's original name
+        for (const [local, original] of Object.entries(fileResult.importMap)) {
+          if (original === instance.component && fileResult.sourceMap[local]) {
+            const { resolveVersion } = require("../lib/version");
+            packageVersion =
+              resolveVersion(absoluteFilePath, fileResult.sourceMap[local]) ||
+              null;
+            break;
+          }
+        }
+      }
+
       const ref = {
         file: filePath,
+        packageVersion,
         line: instance.line,
         codebase,
         sourceCode: "",
@@ -1234,7 +1276,7 @@ async function analyzeCodebase(codebase, reports) {
     const result = analyzeFileContent(content);
     // Store a relative path from the codebase root for readability
     const relPath = path.relative(basePath, file);
-    mergeFileResult(reports, result, codebase, relPath, content);
+    mergeFileResult(reports, result, codebase, relPath, content, file);
     analyzed++;
   }
 

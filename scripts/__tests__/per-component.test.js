@@ -266,7 +266,7 @@ describe("isTrackedUISource", () => {
 describe("buildTrackedUIImportMap", () => {
   test("maps standard imports", () => {
     const content = `import { Button, Card, Flex } from '@sanity/ui'`;
-    const map = buildTrackedUIImportMap(content);
+    const { components: map } = buildTrackedUIImportMap(content);
     expect(map).toEqual({
       Button: "Button",
       Card: "Card",
@@ -276,7 +276,7 @@ describe("buildTrackedUIImportMap", () => {
 
   test("maps aliased imports", () => {
     const content = `import { Button as Btn, Card as UICard } from '@sanity/ui'`;
-    const map = buildTrackedUIImportMap(content);
+    const { components: map } = buildTrackedUIImportMap(content);
     expect(map).toEqual({
       Btn: "Button",
       UICard: "Card",
@@ -289,7 +289,7 @@ describe("buildTrackedUIImportMap", () => {
       import { CloseIcon } from '@sanity/icons'
       import { Dialog } from './Dialog'
     `;
-    const map = buildTrackedUIImportMap(content);
+    const { components: map } = buildTrackedUIImportMap(content);
     expect(map.Button).toBe("Button");
     expect(map.CloseIcon).toBe("CloseIcon");
     expect(map.Dialog).toBeUndefined();
@@ -297,30 +297,30 @@ describe("buildTrackedUIImportMap", () => {
 
   test("excludes hooks and utilities", () => {
     const content = `import { Button, useToast, rem } from '@sanity/ui'`;
-    const map = buildTrackedUIImportMap(content);
+    const { components: map } = buildTrackedUIImportMap(content);
     expect(map).toEqual({ Button: "Button" });
   });
 
   test("excludes @sanity/ui/theme imports", () => {
     const content = `import { Theme } from '@sanity/ui/theme'`;
-    const map = buildTrackedUIImportMap(content);
+    const { components: map } = buildTrackedUIImportMap(content);
     expect(map).toEqual({});
   });
 
   test("returns empty map for no tracked UI library imports", () => {
     const content = `import { useState } from 'react'`;
-    const map = buildTrackedUIImportMap(content);
+    const { components: map } = buildTrackedUIImportMap(content);
     expect(map).toEqual({});
   });
 
   test("returns empty map for empty content", () => {
-    expect(buildTrackedUIImportMap("")).toEqual({});
+    expect(buildTrackedUIImportMap("").components).toEqual({});
   });
 
   test("only includes components in the TRACKED_COMPONENTS list", () => {
     // "SomethingRandom" is PascalCase but not in the list
     const content = `import { Button, SomethingRandom } from '@sanity/ui'`;
-    const map = buildTrackedUIImportMap(content);
+    const { components: map } = buildTrackedUIImportMap(content);
     expect(map).toEqual({ Button: "Button" });
   });
 });
