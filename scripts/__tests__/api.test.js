@@ -491,7 +491,10 @@ describe("perComponent — pure utilities", () => {
 
 describe("perComponent — context-aware", () => {
   test("buildTrackedUIImportMap finds tracked imports", () => {
-    const map = perComponent.buildTrackedUIImportMap(SAMPLE_FILE, ctx);
+    const { components: map } = perComponent.buildTrackedUIImportMap(
+      SAMPLE_FILE,
+      ctx,
+    );
     expect(map).toEqual({
       Button: "Button",
       Card: "Card",
@@ -500,22 +503,34 @@ describe("perComponent — context-aware", () => {
   });
 
   test("buildTrackedUIImportMap ignores non-tracked imports", () => {
-    const map = perComponent.buildTrackedUIImportMap(NON_TRACKED_FILE, ctx);
+    const { components: map } = perComponent.buildTrackedUIImportMap(
+      NON_TRACKED_FILE,
+      ctx,
+    );
     expect(map).toEqual({});
   });
 
   test("buildTrackedUIImportMap ignores excluded sources", () => {
-    const map = perComponent.buildTrackedUIImportMap(EXCLUDED_SOURCE_FILE, ctx);
+    const { components: map } = perComponent.buildTrackedUIImportMap(
+      EXCLUDED_SOURCE_FILE,
+      ctx,
+    );
     expect(map).toEqual({});
   });
 
   test("buildTrackedUIImportMap returns empty for plain file", () => {
-    const map = perComponent.buildTrackedUIImportMap(PLAIN_FILE, ctx);
+    const { components: map } = perComponent.buildTrackedUIImportMap(
+      PLAIN_FILE,
+      ctx,
+    );
     expect(map).toEqual({});
   });
 
   test("buildTrackedUIImportMap handles aliased imports", () => {
-    const map = perComponent.buildTrackedUIImportMap(ALIASED_FILE, ctx);
+    const { components: map } = perComponent.buildTrackedUIImportMap(
+      ALIASED_FILE,
+      ctx,
+    );
     expect(map).toEqual({
       Btn: "Button",
       C: "Card",

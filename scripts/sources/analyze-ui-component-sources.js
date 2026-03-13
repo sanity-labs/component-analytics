@@ -800,20 +800,25 @@ function generateMarkdown(results) {
     `### Most Used ${UI_LIBRARY_NAMES} Components (Across All Codebases)`,
   );
   reportLines.push("");
-  reportLines.push("| Rank | Component | Total | sanity | canvas | huey |");
-  reportLines.push("| ---: | --- | ---: | ---: | ---: | ---: |");
+
+  // Build header and data rows using actual codebase names from results
+  const codebaseNames = Object.keys(results).filter((cb) => results[cb]);
+  reportLines.push(
+    `| Rank | Component | Total | ${codebaseNames.join(" | ")} |`,
+  );
+  reportLines.push(
+    `| ---: | --- | ---: | ${codebaseNames.map(() => "---:").join(" | ")} |`,
+  );
 
   const allTrackedUISorted = Object.entries(allTrackedUI)
     .sort((a, b) => b[1].total - a[1].total)
     .slice(0, 30);
 
   allTrackedUISorted.forEach(([comp, data], index) => {
-    const sanityCount = data.codebases.sanity || 0;
-    const canvasCount = data.codebases.canvas || 0;
-    const hueyCount = data.codebases.huey || 0;
-    reportLines.push(
-      `| ${index + 1} | ${comp} | ${data.total} | ${sanityCount} | ${canvasCount} | ${hueyCount} |`,
-    );
+    const perCb = codebaseNames
+      .map((cb) => data.codebases[cb] || 0)
+      .join(" | ");
+    reportLines.push(`| ${index + 1} | ${comp} | ${data.total} | ${perCb} |`);
   });
 
   // Key insights

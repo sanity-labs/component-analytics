@@ -22,8 +22,10 @@
  * @property {string[]} excludeSources - Import paths to ignore even if they
  *   match an `importSource`.  For example, `"@my-org/ui/theme"` excludes
  *   theme-only imports from being counted as component usage.
- * @property {string[]} components     - PascalCase component export names to
- *   track (e.g. `"Button"`, `"Card"`, `"Flex"`).
+ * @property {string[]} [components]   - PascalCase component export names to
+ *   track (e.g. `"Button"`, `"Card"`, `"Flex"`).  When omitted or empty,
+ *   **all** PascalCase imports from the library's `importSources` are
+ *   tracked automatically — no need to enumerate every component.
  * @property {string[]} [wrapperSources] - Optional import-path substrings that
  *   identify an internal wrapper layer around this library (e.g.
  *   `["ui-components"]`).  When present, a separate "wrappers" scan is

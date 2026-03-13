@@ -174,7 +174,7 @@ To add or remove a codebase, edit this array and re-run `npm run analyze`. No ot
 
 ### UI Libraries
 
-Define one or more UI component libraries whose usage you want to measure. Each entry specifies import sources and component names:
+Define one or more UI component libraries whose usage you want to measure. Each entry specifies import sources and, optionally, which components to track:
 
 ```js
 uiLibraries: [
@@ -183,16 +183,19 @@ uiLibraries: [
     importSources: ["@my-org/ui"],
     excludeSources: ["@my-org/ui/theme"],
     wrapperSources: ["ui-components"],
-    components: ["Box", "Button", "Card", "Flex", "Text", /* … */],
+    // components is optional — omit it to track ALL PascalCase imports
   },
   {
     name: "My Icons",
     importSources: ["@my-org/icons"],
     excludeSources: [],
+    // or list specific components to track only those:
     components: ["AddIcon", "CloseIcon", "EditIcon", /* … */],
   },
 ],
 ```
+
+When `components` is omitted or empty, **every PascalCase import** from the library's `importSources` is tracked automatically — you don't need to enumerate the full component list. When `components` is provided, only those specific names are tracked.
 
 Components from all entries are merged into a single tracked set. All libraries' import sources are matched together when classifying JSX elements.
 
@@ -201,7 +204,7 @@ Components from all entries are merged into a single tracked set. All libraries'
 | `importSources` | Package names matched as substrings against import paths |
 | `excludeSources` | Import paths to ignore even if they match an `importSource` |
 | `wrapperSources` | Optional. Import-path substrings that identify an internal wrapper layer around this library (e.g. `["ui-components"]`). When present, a separate "wrappers" scan measures how much code goes through the wrapper vs. importing the library directly. |
-| `components` | PascalCase component names to track |
+| `components` | Optional. PascalCase component names to track. When omitted, all PascalCase imports from the library are tracked. |
 
 Prop defaults are detected automatically from usage data during `npm run analyze` — no manual configuration needed.
 
@@ -283,12 +286,14 @@ reports/
 │       │   ├── all-components.json     #     Raw React Scanner JSON
 │       │   ├── summary.csv             #     Component name, instance count, top prop
 │       │   ├── detailed.csv            #     Every component × prop × value
+│       │   └── stats.md                #     Tracked library + all-source statistics
+│       ├── wrappers/                   #   Only internal UI wrapper components
+│       │   ├── wrappers.json           #     Raw React Scanner JSON
+│       │   ├── summary.csv             #     Wrapper component summary
+│       │   ├── detailed.csv            #     Wrapper component × prop × value
 │       │   └── stats.md                #     Human-readable statistics
-│       └── wrappers/                   #   Only internal UI wrapper components
-│           ├── wrappers.json           #     Raw React Scanner JSON
-│           ├── summary.csv             #     Wrapper component summary
-│           ├── detailed.csv            #     Wrapper component × prop × value
-│           └── stats.md                #     Human-readable statistics
+│       ├── versions.md                 #   Per-codebase version usage breakdown
+│       └── versions.json              #   Machine-readable version data
 │
 ├── components/                         # Tracked UI library — per-component detail
 │   ├── summary.md                      #   Ranked table of all tracked components
@@ -304,7 +309,9 @@ reports/
 ├── sources/                            # JSX element source classification
 │   ├── report.md                       #   Which JSX elements come from the tracked library
 │   ├── report.csv                      #     vs internal code vs native HTML vs other UI
-│   └── report.json
+│   ├── report.json
+│   ├── versions.md                     #   Cross-codebase version usage summary
+│   └── versions.json                   #   Machine-readable version data
 │
 ├── html-tags/                          # Native HTML/SVG tag usage
 │   ├── report.md                       #   Every <div>, <span>, <svg>, etc. in JSX
@@ -342,8 +349,10 @@ reports/
 
 | Report | Question it answers |
 |--------|-------------------|
-| **`codebases/{name}/all-components/`** | What React components exist in this codebase and how often is each used? |
+| **`codebases/{name}/all-components/`** | What React components exist in this codebase and how often is each used? Includes tracked library breakdown and all-source ranking. |
 | **`codebases/{name}/wrappers/`** | Which internal wrapper components are used and how? (Only present when `wrapperSources` is configured.) |
+| **`codebases/{name}/versions.*`** | Which versions of the tracked library are used in this codebase? |
+| **`sources/versions.*`** | Cross-codebase version usage: which codebases use which versions, which components span multiple versions? |
 | **`components/summary.*`** | Across all codebases, which tracked UI library components are used most? |
 | **`components/detail/<Name>.json`** | For one component: every prop, every value, every file+line reference. |
 | **`components/detected-defaults.*`** | Which prop values are redundant because they match the component's default? |
@@ -365,6 +374,26 @@ Each `components/detail/<Name>.json` file contains a `props` object keyed by pro
 | `values` | Map of normalized value → count, sorted by count descending |
 | `defaultValue` | The auto-detected default value, if any |
 | `defaultUsages` | How many times the prop was explicitly set to its default value |
+
+Each instance reference in the `references` array includes:
+
+| Field | Description |
+|-------|-------------|
+| `file` | File path relative to the codebase root |
+| `packageVersion` | The declared version of the import source package (resolved from the nearest `package.json`). Handles pnpm catalogs, npm aliases, and workspace protocols. `null` if the version could not be determined. |
+| `line` | 1-based line number |
+| `codebase` | Which codebase the instance belongs to |
+| `sourceCode` | The JSX opening tag collapsed to a single line |
+
+#### Version tracking
+
+Every component instance is automatically tagged with the **declared package version** from the nearest `package.json`. This enables version usage analysis without any config changes — the tool resolves versions by walking up the directory tree from each source file.
+
+In a monorepo where different workspace packages depend on different versions of the same library, each file's instances are tagged with its own resolved version. For example, Studio files might show `^3.1.11` while Canvas files show `4.0.0-static.46`.
+
+Version reports are generated automatically:
+- **`reports/sources/versions.md`** + **`versions.json`** — Cross-codebase version summary with breakdowns by library, by codebase, and components used across multiple versions.
+- **`reports/codebases/{name}/versions.md`** + **`versions.json`** — Per-codebase version breakdown.
 
 #### Value normalization
 
@@ -415,6 +444,7 @@ The data collection layer (`index.js`, `scripts/lib/context.js`, and the analysi
 ui-component-analysis/
 ├── index.js                                # ← Library entry point (data collection API)
 ├── component-analytics.config.js           # ← CLI configuration file
+├── component-analytics.config.test.js      # ← Test configuration (used automatically by Jest)
 ├── examples/                               # Programmatic usage examples
 │   └── programmatic-usage.js               #   Working example: context + analyze + aggregate
 ├── codebases/                              # Source codebases (git clones)
@@ -427,6 +457,7 @@ ui-component-analysis/
 │   │   ├── context.js                      #   createContext() — config-to-context factory
 │   │   ├── constants.js                    #   Lazy re-exports from context (CLI backward compat)
 │   │   ├── config-schema.js                #   JSDoc typedefs for configuration
+│   │   ├── version.js                      #   Package version resolution from package.json
 │   │   ├── utils.js                        #   sortByCount, pct, incr, mergeCounters, compact, …
 │   │   └── files.js                        #   findFiles, readSafe, writeReports, clearReports, …
 │   ├── sources/                            # Import source classification
@@ -444,6 +475,8 @@ ui-component-analysis/
 │   │   └── analyze-prop-surface.js
 │   ├── line-ownership/                     # Line-of-code footprint
 │   │   └── analyze-line-ownership.js
+│   ├── versions/                           # Version usage analysis
+│   │   └── analyze-versions.js
 │   ├── components/                         # React Scanner post-processing
 │   ├── ui-components/                      # UI wrapper layer post-processing
 │   └── __tests__/                          # Unit tests
@@ -473,15 +506,26 @@ ui-component-analysis/
 
 1. Edit the `uiLibraries` array in `component-analytics.config.js`.
 2. Set `importSources` to the package name(s) (e.g. `["@chakra-ui/react"]`).
-3. List the component names you want to track in `components`.
+3. Optionally list specific component names in `components`. If omitted, all PascalCase imports from the library are tracked automatically.
 4. Optionally set `wrapperSources` if the codebase has an internal wrapper layer around the library.
 5. Run `npm run analyze`.
 
-Prop defaults are detected automatically from the usage data — no manual configuration needed.
+Prop defaults are detected automatically from the usage data — no manual configuration needed. Package versions are resolved automatically from `package.json` declarations.
+
+## Testing
+
+Tests use a dedicated configuration file (`component-analytics.config.test.js`) that is automatically loaded when running under Jest. This ensures tests are deterministic regardless of the user's real config. The test config includes explicit component lists so that all test assertions are stable.
+
+```bash
+npm test              # run all tests
+npm run test:watch    # watch mode
+npm run test:coverage # with coverage report
+```
 
 ## Tools & Dependencies
 
 - **[React Scanner](https://github.com/moroshko/react-scanner)** — component-level usage via static analysis
 - **[glob](https://github.com/isaacs/node-glob)** — file discovery
+- **[semver](https://github.com/npm/node-semver)** — package version resolution and comparison
 - **[Jest](https://jestjs.io/)** — testing
 - **Node.js** — custom AST-pattern scripts for HTML tags, styled analysis, and prop detection
